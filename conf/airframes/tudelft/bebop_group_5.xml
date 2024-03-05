@@ -1,7 +1,7 @@
 <!DOCTYPE airframe SYSTEM "../airframe.dtd">
 
-<airframe name="bebop_avoider">
-  <description>Vision Course TUDelft V2019
+<airframe name="bebop_avoider_G5">
+  <description> Group 5
   </description>
 
   <firmware name="rotorcraft">

@@ -1,0 +1,33 @@
+<!DOCTYPE module SYSTEM "module.dtd">
+
+<module name="nav_group_5" dir="nav_group_5">
+  <doc>
+    <description>
+    This module is currently a copy of orange avoid
+    </description>
+    <define name="ORANGE_AVOIDER_VISUAL_DETECTION_ID" value="ABI_BROADCAST" description="which VISUAL_DETECTION message to recieve for orange pole detection."/>
+    <define name="FLOOR_VISUAL_DETECTION_ID" value="ABI_BROADCAST" description="which VISUAL_DETECTION message to recieve for floor detection."/>
+  </doc>
+  <settings>
+    <dl_settings>
+      <dl_settings name="NavGroup5">
+         <dl_setting var="oag_color_count_frac" min="0" step="0.01" max="0.5"/>
+         <dl_setting var="oag_floor_count_frac" min="0" step="0.01" max="0.5"/>
+         <dl_setting var="oag_max_speed" min="0" step="0.1" max="1"/>
+         <dl_setting var="oag_heading_rate" min="0" step="5" max="45" unit="rad" alt_unit="deg"/>
+      </dl_settings>
+    </dl_settings>
+  </settings>
+  
+  <dep>
+    <depends>cv_detect_color_object</depends>
+  </dep>
+  <header>
+    <file name="nav_group_5.h"/>
+  </header>
+  <init fun="orange_avoider_guided_init()"/>
+  <periodic fun="orange_avoider_guided_periodic()" freq="4"/>
+  <makefile target="ap|nps">
+    <file name="nav_group_5.c"/>
+  </makefile>
+</module>
