@@ -240,7 +240,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
         cnt ++;
         tot_x += x;
         tot_y += y;
-        if (draw){
+        if (!draw){
           *yp = 255;  // make pixel brighter in image
         }
       }
