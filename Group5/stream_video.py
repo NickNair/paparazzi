@@ -9,12 +9,7 @@ import os
 # See the issue and solution here: https://github.com/opencv/opencv/issues/10328
 os.environ['OPENCV_FFMPEG_CAPTURE_OPTIONS'] = 'protocol_whitelist;file,rtp,udp'
 
-class RtpViewer:
-    running = False
-    scale = 1
-    rotate = 1
-    frame = None
-    mouse = dict()
+class VideoFeed:
 
     def __init__(self, src):
 
@@ -64,7 +59,7 @@ if __name__ == '__main__':
     # change the path here
     filename = "/home/nicknair/AE4317/paparazzi/sw/tools/rtp_viewer/rtp_5000.sdp"
 
-    viewer = RtpViewer(filename)
+    viewer = VideoFeed(filename)
 
     if not viewer.cap.isOpened():
         raise IOError("Can't open video stream")
