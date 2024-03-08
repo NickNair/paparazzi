@@ -79,7 +79,7 @@ class VideoFeed:
 if __name__ == '__main__':
 
     # change the path here
-    filename = "/home/nicknair/AE4317/paparazzi/sw/tools/rtp_viewer/rtp_5000.sdp"
+    filename = "/home/liamligthart/group5/paparazzi/sw/tools/rtp_viewer/rtp_5000.sdp"
 
     viewer = VideoFeed(filename)
 
