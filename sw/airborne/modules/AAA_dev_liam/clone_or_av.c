@@ -38,7 +38,9 @@
 #endif
 
 static uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters);
+static uint8_t moveWaypointForwardWithOffsetAngle(uint8_t waypoint, float distanceMeters, float offsetAngle);
 static uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters);
+static uint8_t calculateForwardsWithOffsetAngle(struct EnuCoor_i *new_coor, float distanceMeters, float offsetAngle);
 static uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor);
 static uint8_t increase_nav_heading(float incrementDegrees);
 static uint8_t chooseRandomIncrementAvoidance(void);
@@ -52,9 +54,9 @@ enum navigation_state_t {
 };
 
 // define settings
-float oa_color_count_frac = 0.15f; // Threshold for allowed obstacle pixels in the frame
+float oa_color_count_frac = 0.20f; // Threshold for allowed obstacle pixels in the frame
 uint32_t color_count_threshold; // To be initialized in init()
-float oa_mid_pix_count_frac = 0.01f; // Threshold for allowed obstacle pixels in the middle of the frame
+float oa_mid_pix_count_frac = 0.03f; // Threshold for allowed obstacle pixels in the middle of the frame
 uint32_t mid_pix_count_threshold; // To be initialized in init()
 
 // define and initialise global variables
@@ -108,9 +110,6 @@ void orange_avoider_init(void)
   srand(time(NULL));
   chooseRandomIncrementAvoidance();
 
-  // Initialize nonrandom values
-  color_count_threshold = oa_color_count_frac * front_camera.output_size.w * front_camera.output_size.h;
-  mid_pix_count_threshold = oa_mid_pix_count_frac * front_camera.output_size.w * front_camera.output_size.h;
   // bind our colorfilter callbacks to receive the color filter outputs
   AbiBindMsgPAYLOAD_DATA(ORANGE_AVOIDER_VISUAL_DETECTION_ID, &color_detection_ev, color_detection_cb);
 }
@@ -124,15 +123,20 @@ void orange_avoider_periodic(void)
   if(!autopilot_in_flight()){
     return;
   }
-  VERBOSE_PRINT("Camera w: %d  h: %d\n", front_camera.output_size.w, front_camera.output_size.h);
+  // VERBOSE_PRINT("Camera w: %d  h: %d\n", front_camera.output_size.w, front_camera.output_size.h);
 
-  VERBOSE_PRINT("Color_count: %d  threshold: %d  left: %d  mid: %d  right: %d  state: %d \n", color_count, color_count_threshold, cnt_L, cnt_M, cnt_R, navigation_state);
+  // VERBOSE_PRINT("Color_count: %d  threshold: %d  left: %d  mid: %d  right: %d  state: %d \n", color_count, color_count_threshold, cnt_L, cnt_M, cnt_R, navigation_state);
+
+  // Update thresholds cause for some reason the camera specs change after initialization
+  color_count_threshold = oa_color_count_frac * front_camera.output_size.w * front_camera.output_size.h;
+  mid_pix_count_threshold = oa_mid_pix_count_frac * front_camera.output_size.w * front_camera.output_size.h;
 
   // update our safe confidence using color threshold
   if(color_count < color_count_threshold){
     obstacle_free_confidence++;
   } else {
     obstacle_free_confidence -= 2;  // be more cautious with positive obstacle detections
+    VERBOSE_PRINT("DETECTING OBSTACLE! Setting confidence level to %d\n", obstacle_free_confidence);
   }
 
   // bound obstacle_free_confidence
@@ -173,7 +177,7 @@ void orange_avoider_periodic(void)
       waypoint_move_here_2d(WP_TRAJECTORY);
 
       // randomly select new search direction
-      chooseIncrementAvoidance();
+      chooseRandomIncrementAvoidance();
 
       navigation_state = SEARCH_FOR_SAFE_HEADING;
 
@@ -187,12 +191,20 @@ void orange_avoider_periodic(void)
       }
       break;
     case OUT_OF_BOUNDS:
+      // Change increment direction in a 'smart' way
+      if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
+        chooseIncrementAvoidance(); 
+        lockChangeHeading = 1;
+      }
       increase_nav_heading(heading_increment);
       moveWaypointForward(WP_TRAJECTORY, 1.5f);
 
       if (InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
         // add offset to head back into arena
         increase_nav_heading(heading_increment);
+
+        // Reset heading lock
+        lockChangeHeading = 0;
 
         // reset safe counter
         obstacle_free_confidence = 0;
@@ -236,6 +248,17 @@ uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters)
 }
 
 /*
+ * Calculates coordinates of distance forward with some offset in degrees and sets waypoint 'waypoint' to those coordinates
+ */
+uint8_t moveWaypointForwardWithOffsetAngle(uint8_t waypoint, float distanceMeters, float offsetAngle)
+{
+  struct EnuCoor_i new_coor;
+  calculateForwardsWithOffsetAngle(&new_coor, distanceMeters, offsetAngle);
+  moveWaypoint(waypoint, &new_coor);
+  return false;
+}
+
+/*
  * Calculates coordinates of a distance of 'distanceMeters' forward w.r.t. current position and heading
  */
 uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
@@ -245,9 +268,26 @@ uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
   // Now determine where to place the waypoint you want to go to
   new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
   new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (distanceMeters));
-  VERBOSE_PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,	
-                POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
-                stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
+  //VERBOSE_PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,	
+                // POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
+                // stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
+  return false;
+}
+
+
+/*
+ * Calculates coordinates of a distance of 'distanceMeters' forward w.r.t. current position and heading with an additional offset in degrees
+ */
+uint8_t calculateForwardsWithOffsetAngle(struct EnuCoor_i *new_coor, float distanceMeters, float offsetAngle)
+{
+  float heading  = stateGetNedToBodyEulers_f()->psi + offsetAngle;
+
+  // Now determine where to place the waypoint you want to go to
+  new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
+  new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (distanceMeters));
+  //VERBOSE_PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,	
+                // POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
+                // stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
   return false;
 }
 
@@ -256,8 +296,8 @@ uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
  */
 uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor)
 {
-  VERBOSE_PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
-                POS_FLOAT_OF_BFP(new_coor->y));
+  //VERBOSE_PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
+                // POS_FLOAT_OF_BFP(new_coor->y));
   waypoint_move_xy_i(waypoint, new_coor->x, new_coor->y);
   return false;
 }
@@ -285,12 +325,20 @@ uint8_t chooseIncrementAvoidance(void)
 {
   if(cnt_L > cnt_R){
     heading_increment = fabs(heading_increment);
-    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
   }
   else{
     heading_increment = -fabs(heading_increment);
-    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
   }
+
+  // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
+  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 2.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
+  if(InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY)) == 0){
+    heading_increment = -fabs(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
+    VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
+  }
+
+  VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
+
   return false;
 }
 
