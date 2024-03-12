@@ -63,7 +63,7 @@ float heading_increment = 5.f;        // heading angle increment [deg]
 float maxDistance = 2.25;             // max waypoint displacement [m]
 
 float dis = 0;
-int flag  = 1;
+int flag = 1;
 const int16_t max_trajectory_confidence = 5; // number of consecutive negative object detections to be sure we are obstacle free
 
 /*
@@ -109,95 +109,92 @@ void orange_avoider_periodic(void)
     return;
   }
 
-  // move in a circle
-  // dis+=flag*0.5;
-  // waypoint_set_alt(WP_GOAL,dis);
-  // if(dis>1)
-  //   flag = -1;
-  // else if(dis<=0)
-  //   flag = 1;
-  moveWaypointForward(WP_TRAJECTORY, 2.0);
-  moveWaypointForward(WP_GOAL, 2.0);
+  // Move in a Circle
+  moveWaypointForward(WP_TRAJECTORY, 0.5);
+  moveWaypointForward(WP_GOAL, 0.5);
   increase_nav_heading(5);
-    // float distanceMeters  = .1;
-    // struct EnuCoor_i *new_coor;
-    // float heading  = stateGetNedToBodyEulers_f()->psi;
-    // new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
-    // new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL( sinf(cosf(heading) * (distanceMeters)));
-    // waypoint_move_xy_i(WP_GOAL, new_coor->x, new_coor->y);
-    return;
-  }
 
-  /*
-   * Increases the NAV heading. Assumes heading is an INT32_ANGLE. It is bound in this function.
-   */
-  uint8_t increase_nav_heading(float incrementDegrees)
+  // float distanceMeters = 1;
+  // struct EnuCoor_i new_coor;
+  // float heading = stateGetNedToBodyEulers_f()->psi;
+  // // new_coor.x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
+  // // new_coor.y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(sinf(2*3.14*20*cosf(heading) * (distanceMeters)));
+  // new_coor.x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(1);
+  // new_coor.y = stateGetPositionEnu_i()->y ; // + POS_BFP_OF_REAL(0);
+  // waypoint_move_xy_i(WP_GOAL, new_coor.x, new_coor.y);
+  return;
+}
+
+/*
+ * Increases the NAV heading. Assumes heading is an INT32_ANGLE. It is bound in this function.
+ */
+uint8_t increase_nav_heading(float incrementDegrees)
+{
+  float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(incrementDegrees);
+
+  // normalize heading to [-pi, pi]
+  FLOAT_ANGLE_NORMALIZE(new_heading);
+
+  // set heading, declared in firmwares/rotorcraft/navigation.h
+  nav.heading = new_heading;
+
+  VERBOSE_PRINT("Increasing heading to %f\n", DegOfRad(new_heading));
+  return false;
+}
+
+/*
+ * Calculates coordinates of distance forward and sets waypoint 'waypoint' to those coordinates
+ */
+uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters)
+{
+  struct EnuCoor_i new_coor;
+  calculateForwards(&new_coor, distanceMeters);
+  moveWaypoint(waypoint, &new_coor);
+  return false;
+}
+
+/*
+ * Calculates coordinates of a distance of 'distanceMeters' forward w.r.t. current position and heading
+ */
+uint8_t calculateForwards(struct EnuCoor_i *new_coor, float distanceMeters)
+{
+  float heading = stateGetNedToBodyEulers_f()->psi;
+
+  // Now determine where to place the waypoint you want to go to
+  new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
+  new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (distanceMeters));
+  VERBOSE_PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,
+                POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
+                stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
+  return false;
+}
+
+/*
+ * Sets waypoint 'waypoint' to the coordinates of 'new_coor'
+ */
+uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor)
+{
+  VERBOSE_PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
+                POS_FLOAT_OF_BFP(new_coor->y));
+  waypoint_move_xy_i(waypoint, new_coor->x, new_coor->y);
+  return false;
+}
+
+/*
+ * Sets the variable 'heading_increment' randomly positive/negative
+ */
+uint8_t chooseRandomIncrementAvoidance(void)
+{
+  // Randomly choose CW or CCW avoiding direction
+  if (rand() % 2 == 0)
   {
-    float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(incrementDegrees);
-
-    // normalize heading to [-pi, pi]
-    FLOAT_ANGLE_NORMALIZE(new_heading);
-
-    // set heading, declared in firmwares/rotorcraft/navigation.h
-    nav.heading = new_heading;
-
-    VERBOSE_PRINT("Increasing heading to %f\n", DegOfRad(new_heading));
-    return false;
+    heading_increment = 5.f;
+    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
   }
-
-  /*
-   * Calculates coordinates of distance forward and sets waypoint 'waypoint' to those coordinates
-   */
-  uint8_t moveWaypointForward(uint8_t waypoint, float distanceMeters)
+  else
   {
-    struct EnuCoor_i new_coor;
-    calculateForwards(&new_coor, distanceMeters);
-    moveWaypoint(waypoint, &new_coor);
-    return false;
+    heading_increment = -5.f;
+    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
   }
-
-  /*
-   * Calculates coordinates of a distance of 'distanceMeters' forward w.r.t. current position and heading
-   */
-  uint8_t calculateForwards(struct EnuCoor_i * new_coor, float distanceMeters)
-  {
-    float heading = stateGetNedToBodyEulers_f()->psi;
-
-    // Now determine where to place the waypoint you want to go to
-    new_coor->x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (distanceMeters));
-    new_coor->y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (distanceMeters));
-    VERBOSE_PRINT("Calculated %f m forward position. x: %f  y: %f based on pos(%f, %f) and heading(%f)\n", distanceMeters,
-                  POS_FLOAT_OF_BFP(new_coor->x), POS_FLOAT_OF_BFP(new_coor->y),
-                  stateGetPositionEnu_f()->x, stateGetPositionEnu_f()->y, DegOfRad(heading));
-    return false;
-  }
-
-  /*
-   * Sets waypoint 'waypoint' to the coordinates of 'new_coor'
-   */
-  uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i * new_coor)
-  {
-    VERBOSE_PRINT("Moving waypoint %d to x:%f y:%f\n", waypoint, POS_FLOAT_OF_BFP(new_coor->x),
-                  POS_FLOAT_OF_BFP(new_coor->y));
-    waypoint_move_xy_i(waypoint, new_coor->x, new_coor->y);
-    return false;
-  }
-
-  /*
-   * Sets the variable 'heading_increment' randomly positive/negative
-   */
-  uint8_t chooseRandomIncrementAvoidance(void)
-  {
-    // Randomly choose CW or CCW avoiding direction
-    if (rand() % 2 == 0)
-    {
-      heading_increment = 5.f;
-      VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
-    }
-    else
-    {
-      heading_increment = -5.f;
-      VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
-    }
-    return false;
-  }
+  return false;
+}
