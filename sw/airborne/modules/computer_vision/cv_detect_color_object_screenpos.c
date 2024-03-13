@@ -67,7 +67,7 @@ uint8_t cod_cb_max2 = 0;
 uint8_t cod_cr_min2 = 0;
 uint8_t cod_cr_max2 = 0;
 
-float mid_obs_free_frac = 0.3f;
+float mid_obs_free_frac = 0.25f;
 
 bool cod_draw1 = false;
 bool cod_draw2 = false;
