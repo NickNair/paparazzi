@@ -15,10 +15,17 @@
 
 // settings
 extern float oa_color_count_frac;
+struct cv_test_global {
+    int obstacle_num;
+    int start_y[10];
+    float width;
+};
+
 
 // functions
 extern void orange_avoider_init(void);
 extern void orange_avoider_periodic(void);
+
 
 #endif
 
