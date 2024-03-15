@@ -59,7 +59,7 @@ enum navigation_state_t {
   OUT_OF_BOUNDS
 };
 
-struct cv_test_global cv_test;
+cv_test_global cv_test;
 
 // define settings
 float oa_color_count_frac = 0.22f; // Threshold for allowed obstacle pixels in the frame
@@ -95,7 +95,7 @@ const int16_t max_trajectory_confidence = 6; // number of consecutive negative o
 #ifndef ORANGE_AVOIDER_VISUAL_DETECTION_ID
 #define ORANGE_AVOIDER_VISUAL_DETECTION_ID ABI_BROADCAST
 #endif
-////static abi_event color_detection_ev;
+static abi_event color_detection_ev;
 // static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
 //                                int16_t __attribute__((unused)) pixel_x, int16_t __attribute__((unused)) pixel_y,
 //                                int16_t __attribute__((unused)) pixel_width, int16_t __attribute__((unused)) pixel_height,
@@ -103,17 +103,26 @@ const int16_t max_trajectory_confidence = 6; // number of consecutive negative o
 // {
 //   color_count = quality;
 // }
-////
-// static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
-//                                uint32_t stamp, int32_t __attribute__((unused)) data_type,
-//                                uint32_t size, uint8_t *buf)
-// {
-//   if(stamp != 101 || size != 16) return; // Check if we actually receive the message of color detection
-//   color_count = buf[0] | (buf[1] << 8) | buf[2] << 16 | buf[3] << 24;
-//   cnt_L = buf[4] | (buf[5] << 8) | buf[6] << 16 | buf[7] << 24;
-//   cnt_M = buf[8] | (buf[9] << 8) | buf[10] << 16 | buf[11] << 24;
-//   cnt_R = buf[12] | (buf[13] << 8) | buf[14] << 16 | buf[15] << 24;
-// }
+//
+static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
+                               uint32_t stamp, int32_t __attribute__((unused)) data_type,
+                               uint32_t size, uint8_t *buf)
+{
+  // if(stamp != 101 || size != 16) return; // Check if we actually receive the message of color detection
+
+  memcpy(&cv_test, (cv_test_global*) buf, size);
+  // color_count = buf[0] | (buf[1] << 8) | buf[2] << 16 | buf[3] << 24;
+  // cnt_L = buf[4] | (buf[5] << 8) | buf[6] << 16 | buf[7] << 24;
+  // cnt_M = buf[8] | (buf[9] << 8) | buf[10] << 16 | buf[11] << 24;
+  // cnt_R = buf[12] | (buf[13] << 8) | buf[14] << 16 | buf[15] << 24;
+
+  VERBOSE_PRINT("NUM OBS: %d\n", cv_test.obstacle_num);
+
+  // for (int i = 0; i < cv_test.obstacle_num; i++) {
+  //   VERBOSE_PRINT("R: x: %d, y: %d, width: %d\n", cv_test.obs[i].x, cv_test.obs[i].y, cv_test.obs[i].width);
+  // }
+
+}
 
 
 
@@ -127,7 +136,7 @@ void orange_avoider_init(void)
   chooseRandomIncrementAvoidance();
 
   // bind our colorfilter callbacks to receive the color filter outputs
- //// AbiBindMsgPAYLOAD_DATA(ORANGE_AVOIDER_VISUAL_DETECTION_ID, &color_detection_ev, color_detection_cb);
+  AbiBindMsgPAYLOAD_DATA(ORANGE_AVOIDER_VISUAL_DETECTION_ID, &color_detection_ev, color_detection_cb);
 }
 
 /*
@@ -168,9 +177,9 @@ void orange_avoider_periodic(void)
 
 
   for (int i = 0; i < cv_test.obstacle_num; i ++) {
-    if(cv_test.start_y[i] <= 170){
+    if(cv_test.obs[i].y <= 170){
       cnt_L++;
-    } else if (cv_test.start_y[i] <= 350){
+    } else if (cv_test.obs[i].y <= 350){
       cnt_M++;
     } else {
       cnt_R++;
@@ -199,7 +208,7 @@ void orange_avoider_periodic(void)
 
   switch (navigation_state){
     case SAFE:
-        if(cnt_M > 0 && cv_test.width <= width_threshold){
+        if(cnt_M > 0 && cv_test.obs[0].width <= width_threshold){
       //if(cnt_M > mid_pix_count_threshold){
         // Move waypoint slightly sideways
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
@@ -210,7 +219,7 @@ void orange_avoider_periodic(void)
         increase_nav_heading(0);
         moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
       }
-      else if (cnt_M > 0 && cv_test.width >= width_threshold){
+      else if (cnt_M > 0 && cv_test.obs[0].width >= width_threshold){
         navigation_state = SEARCH_FOR_SAFE_HEADING;
         
        } else {
