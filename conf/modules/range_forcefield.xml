@@ -8,7 +8,7 @@
       <define name="INNER_LIMIT" value="1." description="The inner border of the range forcefield, where the MAV will avoid the obstacle with the maximum velocity as given by MIN_VEL (in meters)"/>
       <define name="OUTER_LIMIT" value="1.4" description="The outer border of the range forcefield, where the MAV will start avoiding with velocity determined on the range measurement (starts with MIN_VEL)"/>
       <define name="MIN_VEL" value="0.0" description="The minimum velocity which forces the MAV out of the forcefield (in [m/s])"/>
-      <define name="MAX_VEL" value="0.5" description="The maximum velocity which forces the MAV out of the forcefield (in [m/s])"/>
+      <define name="MAX_VEL" value="5" description="The maximum velocity which forces the MAV out of the forcefield (in [m/s])"/> 
     </section>
   </doc>
 

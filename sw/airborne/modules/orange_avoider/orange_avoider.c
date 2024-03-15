@@ -65,7 +65,7 @@ struct cv_test_global cv_test;
 float oa_color_count_frac = 0.22f; // Threshold for allowed obstacle pixels in the frame
 uint32_t color_count_threshold; // To be initialized in init()
 float oa_mid_pix_count_frac = 0.04f; // Threshold for allowed obstacle pixels in the middle of the frame
-uint32_t mid_pix_count_threshold; // To be initialized in init()
+//uint32_t mid_pix_count_threshold; // To be initialized in init()
 
 // define and initialise global variables
 enum navigation_state_t navigation_state = SEARCH_FOR_SAFE_HEADING;
@@ -178,11 +178,12 @@ void orange_avoider_periodic(void)
   }
 
   color_count_threshold = cv_test.obstacle_num;
-  mid_pix_count_threshold = 0;
+  //mid_pix_count_threshold = 0;
   int width_threshold = 15;  
 
     // update our safe confidence using color threshold
-  if(color_count < color_count_threshold){ 
+  //if(color_count < color_count_threshold){ 
+    if(cv_test.obstacle_num == 0){ 
     obstacle_free_confidence++;
   } else { // Remove confidence if there are too many obstacles in the field
     obstacle_free_confidence -= 2; 
@@ -198,7 +199,7 @@ void orange_avoider_periodic(void)
 
   switch (navigation_state){
     case SAFE:
-        if(cnt_M > mid_pix_count_threshold && cv_test.width >= width_threshold){
+        if(cnt_M > 0 && cv_test.width <= width_threshold){
       //if(cnt_M > mid_pix_count_threshold){
         // Move waypoint slightly sideways
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
@@ -209,7 +210,10 @@ void orange_avoider_periodic(void)
         increase_nav_heading(0);
         moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
       }
-      else{
+      else if (cnt_M > 0 && cv_test.width >= width_threshold){
+        navigation_state = SEARCH_FOR_SAFE_HEADING;
+        
+       } else {
         // Move waypoint forward
         moveWaypointForward(WP_TRAJECTORY, 1.5f * moveDistance);
         lockChangeHeading = 0; // Reset heading lock
@@ -222,10 +226,11 @@ void orange_avoider_periodic(void)
         navigation_state = OBSTACLE_FOUND;
       } else {
         moveWaypointForward(WP_GOAL, moveDistance);
+      }
+
         cnt_L = 0;
         cnt_M = 0;
         cnt_R = 0;
-      }
 
       break;
     case OBSTACLE_FOUND:
