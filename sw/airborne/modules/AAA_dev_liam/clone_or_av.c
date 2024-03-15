@@ -77,7 +77,7 @@ float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
 float heading_increment = 20.f;          // Current setting for heading angle increment [deg]
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
-float maxDistance = 1.5;               // max waypoint displacement [m]
+float maxDistance = 1.25;               // max waypoint displacement [m]
 
 
 const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
