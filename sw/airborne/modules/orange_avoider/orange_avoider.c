@@ -30,6 +30,7 @@
 
 #define ORANGE_AVOIDER_VERBOSE TRUE
 
+
 #define PRINT(string,...) fprintf(stderr, "[orange_avoider->%s()] " string,__FUNCTION__ , ##__VA_ARGS__)
 #if ORANGE_AVOIDER_VERBOSE
 #define VERBOSE_PRINT PRINT
@@ -51,6 +52,7 @@ static uint8_t moveWaypoint(uint8_t waypoint, struct EnuCoor_i *new_coor);
 static uint8_t increase_nav_heading(int min_heading_num);
 static uint8_t chooseRandomIncrementAvoidance(void);
 static uint8_t chooseIncrementAvoidance(void);
+static int max_width(cv_test_global obs_info, int* idx_arr, int size);
 
 enum navigation_state_t {
   SAFE,
@@ -124,7 +126,19 @@ static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
 
 }
 
+int max_width(cv_test_global obs_info, int *idx_arr, int size)
+{
+    int width = obs_info.obs[idx_arr[0]].width;
+    int _max = width;
 
+    for (int i = 0; i < size; i++) {
+        width = obs_info.obs[idx_arr[i]].width;
+        if (width > _max) {
+            _max = width;
+        }
+    }
+    return _max;
+}
 
 /*
  * Initialisation function, setting the colour filter, random seed and heading_increment
@@ -175,20 +189,28 @@ void orange_avoider_periodic(void)
   //   VERBOSE_PRINT("DETECTING OBSTACLE! Setting confidence level to %d\n", obstacle_free_confidence);
   // }
 
-
+  cnt_L = 0;
+  cnt_M = 0;
+  cnt_R = 0;
+  int index_L[10] = {0}, index_M[10] = {0}, index_R[10] = {0}; 
   for (int i = 0; i < cv_test.obstacle_num; i ++) {
     if(cv_test.obs[i].y <= 170){
+      index_L[cnt_L] = i;
       cnt_L++;
     } else if (cv_test.obs[i].y <= 350){
+      index_M[cnt_M] = i;
       cnt_M++;
     } else {
+      index_R[cnt_R] = i;
       cnt_R++;
     }
   }
+  VERBOSE_PRINT("L: %d M: %d R: %d", cnt_L, cnt_M, cnt_R);
+  
 
   color_count_threshold = cv_test.obstacle_num;
   //mid_pix_count_threshold = 0;
-  int width_threshold = 15;  
+  int width_threshold = 60;  
 
     // update our safe confidence using color threshold
   //if(color_count < color_count_threshold){ 
@@ -204,11 +226,11 @@ void orange_avoider_periodic(void)
   Bound(obstacle_free_confidence, 0, max_trajectory_confidence);
   ////float moveDistance = clip(1 - 0.5*color_count/color_count_threshold, 0, 1) * obstacle_free_confidence * maxDistance / max_trajectory_confidence;
 
-    float moveDistance = fminf(maxDistance, 0.5f * obstacle_free_confidence);
+    float moveDistance = fminf(maxDistance, 1.0f * obstacle_free_confidence);
 
   switch (navigation_state){
     case SAFE:
-        if(cnt_M > 0 && cv_test.obs[0].width <= width_threshold){
+        if(cnt_M > 0 && max_width(cv_test, index_M, cnt_M) <= width_threshold){
       //if(cnt_M > mid_pix_count_threshold){
         // Move waypoint slightly sideways
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
@@ -219,7 +241,7 @@ void orange_avoider_periodic(void)
         increase_nav_heading(0);
         moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
       }
-      else if (cnt_M > 0 && cv_test.obs[0].width >= width_threshold){
+      else if (cnt_M > 0 && max_width(cv_test, index_M, cnt_M) > width_threshold){
         navigation_state = SEARCH_FOR_SAFE_HEADING;
         
        } else {
@@ -237,9 +259,7 @@ void orange_avoider_periodic(void)
         moveWaypointForward(WP_GOAL, moveDistance);
       }
 
-        cnt_L = 0;
-        cnt_M = 0;
-        cnt_R = 0;
+        
 
       break;
     case OBSTACLE_FOUND:
