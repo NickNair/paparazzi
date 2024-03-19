@@ -797,11 +797,8 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
   coordinates obstacle_start = {.x = 0, .y = 0};
   coordinates obstacle_end = {.x = 0, .y = 0};
   const int MAX_DIST = 40;
-<<<<<<< HEAD
-  int prev_point_y = -1, y_idx = -1, x_idx = -1;
-=======
   int prev_point_sy = -1, prev_point_ey = -1, y_idx = -1, x_idx = -1;
->>>>>>> dev/Hardik
+  int length = 0;
 
   for (int i = 0; i < num_obs_coord; i++) {
 
@@ -815,7 +812,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
           obstacle_end.x = obs_coord[y_idx].end.x;
           obstacle_end.y = obs_coord[y_idx].end.y;
 
-          if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) {
+          if ((abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) && (length > 5)) {
             f_coord[num_final_obs].start.x = obs_coord[x_idx].start.x;
             f_coord[num_final_obs].start.y = obs_coord[y_idx].start.y;
 
@@ -828,6 +825,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
 
         y_idx = i;
         x_idx = i;
+        length = 0;
 
       }
       else {
@@ -835,6 +833,8 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
         if (obs_coord[i].start.x < obs_coord[y_idx].start.x) {
           x_idx = i;
         }
+
+        length++;
 
       }
 
