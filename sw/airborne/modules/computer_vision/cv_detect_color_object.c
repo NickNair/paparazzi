@@ -796,14 +796,14 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
   int num_final_obs = 0;
   coordinates obstacle_start = {.x = 0, .y = 0};
   coordinates obstacle_end = {.x = 0, .y = 0};
-  const int MAX_DIST = 55;
-  int prev_point_y = -1, y_idx = -1, x_idx = -1;
+  const int MAX_DIST = 40;
+  int prev_point_sy = -1, prev_point_ey = -1, y_idx = -1, x_idx = -1;
 
   for (int i = 0; i < num_obs_coord; i++) {
 
-      if ((prev_point_y == -1) || (abs(prev_point_y - obs_coord[i].start.y) >= 10)) {
+      if ((prev_point_sy == -1) || ((abs(prev_point_sy - obs_coord[i].start.y) >= 10) && (abs(prev_point_ey - obs_coord[i].end.y) >= 10))) {
 
-        if (prev_point_y != -1) {
+        if (prev_point_sy != -1) {
 
           obstacle_start.x = obs_coord[x_idx].start.x;
           obstacle_start.y = obs_coord[y_idx].start.y;
@@ -817,6 +817,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
 
             f_coord[num_final_obs].end.x = obs_coord[y_idx].end.x;
             f_coord[num_final_obs].end.y = obs_coord[y_idx].end.y;
+
             num_final_obs++;
           }
         }
@@ -833,7 +834,8 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
 
       }
 
-      prev_point_y = obs_coord[i].start.y;
+      prev_point_sy = obs_coord[i].start.y;
+      prev_point_ey = obs_coord[i].end.y;
   }
 
   // Add the last obstacle
