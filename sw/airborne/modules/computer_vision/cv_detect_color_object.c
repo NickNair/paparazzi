@@ -107,6 +107,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
 void erosion(uint8_t **image, uint16_t rows, uint16_t cols, uint8_t kernel_size);
 void dilation(uint8_t **image, uint16_t rows, uint16_t cols, uint8_t kernel_size);
 void remove_mat(uint8_t **binary_image, uint32_t rows, uint32_t cols);
+void remove_dirt(uint8_t **binary_image, uint32_t rows, uint32_t cols);
 void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos *obstacle_pos, int *num);
 int compare_obs_pos(const void *a, const void *b);
 int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord);
@@ -316,6 +317,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
   // Processing only part of the image
   erosion(Filtered_img, img->h, w_scan_limit, 4);
   dilation(Filtered_img, img->h, w_scan_limit, 6);
+  remove_dirt(Filtered_img, img->h, w_scan_limit);
   remove_mat(Filtered_img, img->h, w_scan_limit);
 
   // Draw red pixels wherever we detect floor
@@ -668,15 +670,53 @@ void remove_mat(uint8_t **binary_image, uint32_t rows, uint32_t cols) {
     }
 }
 
+// Function to remove the mat from the binary image
+void remove_dirt(uint8_t **binary_image, uint32_t rows, uint32_t cols) {
+    uint8_t prev_pixel = 0, pixel_value = 0;
+    coordinates dirt_start = {.x = 0, .y = 0};
+    coordinates dirt_end = {.x = 0, .y = 0};
+    int on_dirt = 0;
+    uint32_t dist = 0;
+
+    for (uint16_t col = 10; col < cols; col++) {
+        prev_pixel = 0;
+        for (uint16_t row = 0; row < rows; row++) {
+
+            pixel_value = binary_image[row][col];
+
+            if (pixel_value == 1 && prev_pixel == 0 && on_dirt == 0) {
+                dirt_start.x = col; dirt_start.y = row;
+                on_dirt = 1;
+            } else if (on_dirt == 1 && (pixel_value == 0 || row == rows)) {
+                dirt_end.x = col; dirt_end.y = row;
+                on_dirt = 0;
+
+                dist = ((dirt_end.x - dirt_start.x)^2) + ((dirt_end.y - dirt_start.y)^2);
+
+                if ((dist >=1) && (dist < 15)) {
+                  // Set the white dirt to 0
+                  for (int r = dirt_start.y; r <= dirt_end.y; r++) {
+                      binary_image[r][col] = 0;
+                  }
+                }
+            }
+
+            prev_pixel = pixel_value;
+        }
+    }
+}
+
+
 void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos *obstacle_pos, int *num) {
   
   coordinates obstacle_start = {.x = 0, .y = 0};
   coordinates obstacle_end = {.x = 0, .y = 0};
-  uint8_t dist = 0;
+  uint32_t dist = 0;
   const int MAX_DIST_SQ = 15^2;
+  const int CN_MAX_DIST_SQ = 200^2;
   int num_obstacles = 0;
 
-  int inside_obstacle = 0;
+  int inside_obstacle = 0, corner_obstacle = 0;
   int prev_pixel = 0, pixel_value = 0;
 
   for (uint16_t col = 0; col < cols; col++) {
@@ -691,14 +731,17 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
 
           // It can't differentiate between obstacle and no green floor anymore
           // // Detects obstacle on left edge
-          // if (row <= 5 && col <= 5 && pixel_value == 0) {
-          //   prev_pixel = 1;
-          // }
+          // TODO: Maybe try to add larger width to qualify these edges as obstacles
+          if (row <= 5 && col <= 5 && pixel_value == 0) {
+            prev_pixel = 1;
+            corner_obstacle = 1;
+          }
 
-          // // Detects obstacle on right edge
-          // if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
-          //   pixel_value = 1;
-          // }
+          // Detects obstacle on right edge
+          if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
+            pixel_value = 1;
+            corner_obstacle = 1;
+          }
 
           // Check for transition from white to black (start of obstacle)
           if (inside_obstacle == 0 && pixel_value == 0 && prev_pixel == 1) {
@@ -712,14 +755,18 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
             dist = ((obstacle_end.x - obstacle_start.x)^2) + ((obstacle_end.y - obstacle_start.y)^2);
 
             if (dist > MAX_DIST_SQ) {
+
+                if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
                 obstacle_pos[num_obstacles].start.x = obstacle_start.x;
                 obstacle_pos[num_obstacles].start.y = obstacle_start.y;
                 obstacle_pos[num_obstacles].end.x = obstacle_end.x;
                 obstacle_pos[num_obstacles].end.y = obstacle_end.y;
-
                 num_obstacles++;
+                }
+                
             }
               inside_obstacle = 0;
+              corner_obstacle = 0;
           }
 
           
@@ -750,13 +797,17 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
   coordinates obstacle_start = {.x = 0, .y = 0};
   coordinates obstacle_end = {.x = 0, .y = 0};
   const int MAX_DIST = 40;
+<<<<<<< HEAD
   int prev_point_y = -1, y_idx = -1, x_idx = -1;
+=======
+  int prev_point_sy = -1, prev_point_ey = -1, y_idx = -1, x_idx = -1;
+>>>>>>> dev/Hardik
 
   for (int i = 0; i < num_obs_coord; i++) {
 
-      if ((prev_point_y == -1) || (abs(prev_point_y - obs_coord[i].start.y) >= 10)) {
+      if ((prev_point_sy == -1) || ((abs(prev_point_sy - obs_coord[i].start.y) >= 10) && (abs(prev_point_ey - obs_coord[i].end.y) >= 10))) {
 
-        if (prev_point_y != -1) {
+        if (prev_point_sy != -1) {
 
           obstacle_start.x = obs_coord[x_idx].start.x;
           obstacle_start.y = obs_coord[y_idx].start.y;
@@ -770,6 +821,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
 
             f_coord[num_final_obs].end.x = obs_coord[y_idx].end.x;
             f_coord[num_final_obs].end.y = obs_coord[y_idx].end.y;
+
             num_final_obs++;
           }
         }
@@ -786,7 +838,8 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
 
       }
 
-      prev_point_y = obs_coord[i].start.y;
+      prev_point_sy = obs_coord[i].start.y;
+      prev_point_ey = obs_coord[i].end.y;
   }
 
   // Add the last obstacle
