@@ -107,6 +107,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
 void erosion(uint8_t **image, uint16_t rows, uint16_t cols, uint8_t kernel_size);
 void dilation(uint8_t **image, uint16_t rows, uint16_t cols, uint8_t kernel_size);
 void remove_mat(uint8_t **binary_image, uint32_t rows, uint32_t cols);
+void remove_dirt(uint8_t **binary_image, uint32_t rows, uint32_t cols);
 void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos *obstacle_pos, int *num);
 int compare_obs_pos(const void *a, const void *b);
 int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord);
@@ -316,6 +317,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
   // Processing only part of the image
   erosion(Filtered_img, img->h, w_scan_limit, 4);
   dilation(Filtered_img, img->h, w_scan_limit, 6);
+  remove_dirt(Filtered_img, img->h, w_scan_limit);
   remove_mat(Filtered_img, img->h, w_scan_limit);
 
   // Draw red pixels wherever we detect floor
@@ -667,6 +669,43 @@ void remove_mat(uint8_t **binary_image, uint32_t rows, uint32_t cols) {
         }
     }
 }
+
+// Function to remove the mat from the binary image
+void remove_dirt(uint8_t **binary_image, uint32_t rows, uint32_t cols) {
+    uint8_t prev_pixel = 0, pixel_value = 0;
+    coordinates dirt_start = {.x = 0, .y = 0};
+    coordinates dirt_end = {.x = 0, .y = 0};
+    int on_dirt = 0;
+    uint32_t dist = 0;
+
+    for (uint16_t col = 10; col < cols; col++) {
+        prev_pixel = 0;
+        for (uint16_t row = 0; row < rows; row++) {
+
+            pixel_value = binary_image[row][col];
+
+            if (pixel_value == 1 && prev_pixel == 0 && on_dirt == 0) {
+                dirt_start.x = col; dirt_start.y = row;
+                on_dirt = 1;
+            } else if (on_dirt == 1 && (pixel_value == 0 || row == rows)) {
+                dirt_end.x = col; dirt_end.y = row;
+                on_dirt = 0;
+
+                dist = ((dirt_end.x - dirt_start.x)^2) + ((dirt_end.y - dirt_start.y)^2);
+
+                if ((dist >=1) && (dist < 15)) {
+                  // Set the white dirt to 0
+                  for (int r = dirt_start.y; r <= dirt_end.y; r++) {
+                      binary_image[r][col] = 0;
+                  }
+                }
+            }
+
+            prev_pixel = pixel_value;
+        }
+    }
+}
+
 
 void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos *obstacle_pos, int *num) {
   
