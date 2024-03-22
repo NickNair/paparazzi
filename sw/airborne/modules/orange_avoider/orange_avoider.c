@@ -83,6 +83,7 @@ int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
 float maxDistance = 1.5;               // max waypoint displacement [m]
 
+float testSpeed = 1.0;
 
 const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
 
@@ -226,7 +227,7 @@ void orange_avoider_periodic(void)
   Bound(obstacle_free_confidence, 0, max_trajectory_confidence);
   ////float moveDistance = clip(1 - 0.5*color_count/color_count_threshold, 0, 1) * obstacle_free_confidence * maxDistance / max_trajectory_confidence;
 
-    float moveDistance = fminf(maxDistance, 1.0f * obstacle_free_confidence);
+    float moveDistance = fminf(testSpeed, 1.0f * obstacle_free_confidence);
 
   switch (navigation_state){
     case SAFE:

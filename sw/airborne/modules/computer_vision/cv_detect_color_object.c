@@ -693,7 +693,7 @@ void remove_dirt(uint8_t **binary_image, uint32_t rows, uint32_t cols) {
 
                 dist = ((dirt_end.x - dirt_start.x)^2) + ((dirt_end.y - dirt_start.y)^2);
 
-                if ((dist >=1) && (dist < 15)) {
+                if ((dist >=1) && (dist < 20)) {
                   // Set the white dirt to 0
                   for (int r = dirt_start.y; r <= dirt_end.y; r++) {
                       binary_image[r][col] = 0;
@@ -796,7 +796,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
   int num_final_obs = 0;
   coordinates obstacle_start = {.x = 0, .y = 0};
   coordinates obstacle_end = {.x = 0, .y = 0};
-  const int MAX_DIST = 40;
+  const int MAX_DIST = 50;
   int prev_point_sy = -1, prev_point_ey = -1, y_idx = -1, x_idx = -1;
   int length = 0;
 

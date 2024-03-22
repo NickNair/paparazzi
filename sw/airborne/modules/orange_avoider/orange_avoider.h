@@ -31,6 +31,8 @@ typedef struct cv_test_global_t {
     obs_data_t obs[10];
 } cv_test_global;
 
+extern float testSpeed;
+extern float max_heading_increment;
 
 // functions
 extern void orange_avoider_init(void);
