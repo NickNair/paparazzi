@@ -84,7 +84,8 @@ int lockChangeHeading = 0;              // If the drone is in safe mode and chan
 float maxSpeed = 1.2;               // max waypoint displacement [m]
 int obs_width_threshold = 80;
 
-const int16_t max_trajectory_confidence = 5; // number of consecutive negative object detections to be sure we are obstacle free
+const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
+float heading_history[1000] = {0.0f};
 
 
 /*
@@ -187,7 +188,7 @@ void orange_avoider_periodic(void)
       cnt_R++;
     }
   }
-  VERBOSE_PRINT("L: %d M: %d R: %d\n", cnt_L, cnt_M, cnt_R);
+ // VERBOSE_PRINT("L: %d M: %d R: %d\n", cnt_L, cnt_M, cnt_R);
   
 
   color_count_threshold = cv_test.obstacle_num;
@@ -295,15 +296,31 @@ void orange_avoider_periodic(void)
 uint8_t increase_nav_heading(int min_heading_num)
 {
   if (heading_num > min_heading_num) { // if this is not the first try, reduce rotation to 5 degrees, but keep same direction
-      if (fabs(heading_increment) > min_heading_increment) {
+      if (fabs(heading_increment)/2.0 > min_heading_increment) {
           heading_increment = heading_increment/2.0;
       } 
   }
+  heading_history[heading_num] = stateGetNedToBodyEulers_f()->psi;
+
+  if (heading_num > 2 && fabs(heading_history[heading_num] - heading_history[heading_num-2]) < 0.0523599){
+    VERBOSE_PRINT(" num: %d 1:  %f 2: %f\n",  heading_num, DegOfRad(heading_history[heading_num-1]), DegOfRad(heading_history[heading_num]));
+    heading_increment = - heading_increment / fabs(heading_increment) * 90.0f;   
+    heading_num = 0;
+     // heading_history[0] = 0.0f;
+     // heading_history[1] = 0.0f;
+  }
+    // if (new_heading > 0 && heading_history[0] < (heading_history[1] + 2) && heading_history[0] > (heading_history[1] - 2)){
+    //    heading_increment = - heading_increment;
+    //    heading_history[0] = 0.0f;
+    //   heading_history[1] = 0.0f;
+    // }
+
   heading_num++;
   float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(heading_increment);
 
   // normalize heading to [-pi, pi]
   FLOAT_ANGLE_NORMALIZE(new_heading);
+
 
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
@@ -384,17 +401,17 @@ uint8_t chooseRandomIncrementAvoidance(void)
   // Randomly choose CW or CCW avoiding direction
   if (rand() % 2 == 0) {
     heading_increment = max_heading_increment;
-    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
+   // VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
   } else {
     heading_increment = -max_heading_increment;
-    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
+   // VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
   }
 
     // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
   moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
   if(InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY)) == 0){
     heading_increment = -(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
-    VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
+   // VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
   }
 
   return false;
@@ -420,10 +437,10 @@ uint8_t chooseIncrementAvoidance(void)
   moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
   if(InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY)) == 0){
     heading_increment = -(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
-    VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
+  //  VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
   }
 
-  VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
+//  VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
 
   return false;
 }

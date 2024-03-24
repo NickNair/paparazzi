@@ -713,7 +713,7 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
   coordinates obstacle_end = {.x = 0, .y = 0};
   uint32_t dist = 0;
   const int MAX_DIST_SQ = 15^2;
-  const int CN_MAX_DIST_SQ = 200^2;
+  const int CN_MAX_DIST_SQ = 100^2;
   int num_obstacles = 0;
 
   int inside_obstacle = 0, corner_obstacle = 0;
@@ -732,16 +732,16 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
           // It can't differentiate between obstacle and no green floor anymore
           // // Detects obstacle on left edge
           // TODO: Maybe try to add larger width to qualify these edges as obstacles
-          // if (row <= 5 && col <= 5 && pixel_value == 0) {
-          //   prev_pixel = 1;
-          //   corner_obstacle = 1;
-          // }
+          if (row <= 5 && col <= 5 && pixel_value == 0) {
+            prev_pixel = 1;
+            corner_obstacle = 1;
+          }
 
-          // // Detects obstacle on right edge
-          // if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
-          //   pixel_value = 1;
-          //   corner_obstacle = 1;
-          // }
+          // Detects obstacle on right edge
+          if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
+            pixel_value = 1;
+            corner_obstacle = 1;
+          }
 
           // Check for transition from white to black (start of obstacle)
           if (inside_obstacle == 0 && pixel_value == 0 && prev_pixel == 1) {
@@ -756,13 +756,13 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
 
             if (dist > MAX_DIST_SQ) {
 
-                // if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
-                obstacle_pos[num_obstacles].start.x = obstacle_start.x;
-                obstacle_pos[num_obstacles].start.y = obstacle_start.y;
-                obstacle_pos[num_obstacles].end.x = obstacle_end.x;
-                obstacle_pos[num_obstacles].end.y = obstacle_end.y;
-                num_obstacles++;
-                // }
+                if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
+                  obstacle_pos[num_obstacles].start.x = obstacle_start.x;
+                  obstacle_pos[num_obstacles].start.y = obstacle_start.y;
+                  obstacle_pos[num_obstacles].end.x = obstacle_end.x;
+                  obstacle_pos[num_obstacles].end.y = obstacle_end.y;
+                  num_obstacles++;
+                }
                 
             }
               inside_obstacle = 0;
@@ -796,7 +796,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
   int num_final_obs = 0;
   coordinates obstacle_start = {.x = 0, .y = 0};
   coordinates obstacle_end = {.x = 0, .y = 0};
-  const int MAX_DIST = 30;
+  const int MAX_DIST = 50;
   int prev_point_sy = -1, prev_point_ey = -1, y_idx = -1, x_idx = -1;
   int length = 0;
 
