@@ -81,8 +81,8 @@ float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
 float heading_increment = 20.f;          // Current setting for heading angle increment [deg]
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
-float maxDistance = 2.5;               // max waypoint displacement [m]
-
+float maxSpeed = 1.2;               // max waypoint displacement [m]
+int obs_width_threshold = 80;
 
 const int16_t max_trajectory_confidence = 5; // number of consecutive negative object detections to be sure we are obstacle free
 
@@ -113,19 +113,12 @@ static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
   // if(stamp != 101 || size != 16) return; // Check if we actually receive the message of color detection
 
   memcpy(&cv_test, (cv_test_global*) buf, size);
-  // color_count = buf[0] | (buf[1] << 8) | buf[2] << 16 | buf[3] << 24;
-  // cnt_L = buf[4] | (buf[5] << 8) | buf[6] << 16 | buf[7] << 24;
-  // cnt_M = buf[8] | (buf[9] << 8) | buf[10] << 16 | buf[11] << 24;
-  // cnt_R = buf[12] | (buf[13] << 8) | buf[14] << 16 | buf[15] << 24;
 
-  VERBOSE_PRINT("NUM OBS: %d\n", cv_test.obstacle_num);
-
-  // for (int i = 0; i < cv_test.obstacle_num; i++) {
-  //   VERBOSE_PRINT("R: x: %d, y: %d, width: %d\n", cv_test.obs[i].x, cv_test.obs[i].y, cv_test.obs[i].width);
-  // }
+  //VERBOSE_PRINT("NUM OBS: %d\n", cv_test.obstacle_num);
 
 }
 
+// Returns the largest width of all obstacles in the selected part of the screen in pixels
 int max_width(cv_test_global obs_info, int *idx_arr, int size)
 {
     int width = obs_info.obs[idx_arr[0]].width;
@@ -138,6 +131,21 @@ int max_width(cv_test_global obs_info, int *idx_arr, int size)
         }
     }
     return _max;
+}
+
+int max_width_all(cv_test_global obs_info)
+{
+  if(obs_info.obstacle_num == 0) return 0;
+  int width = obs_info.obs[0].width;
+  int _max = width;
+
+  for (int i = 0; i < obs_info.obstacle_num; i++) {
+      width = obs_info.obs[i].width;
+      if (width > _max) {
+          _max = width;
+      }
+  }
+  return _max;
 }
 
 /*
@@ -163,32 +171,6 @@ void orange_avoider_periodic(void)
     return;
   }
 
-  // VERBOSE_PRINT("Camera w: %d  h: %d\n", front_camera.output_size.w, front_camera.output_size.h);
-
-  // VERBOSE_PRINT("Color_count: %d  threshold: %d  left: %d  mid: %d  right: %d  state: %d \n", color_count, color_count_threshold, cnt_L, cnt_M, cnt_R, navigation_state);
-
-  // Update thresholds cause for some reason the camera specs change after initialization
-  
-  
-  ////color_count_threshold = oa_color_count_frac * front_camera.output_size.w * front_camera.output_size.h;
-  ////mid_pix_count_threshold = oa_mid_pix_count_frac * front_camera.output_size.w * front_camera.output_size.h;
-
-
-  // update our safe confidence using color threshold
-  // if(color_count < color_count_threshold * 0.7){ // Fly fast when there are almost no obstacles in sight
-  //   obstacle_free_confidence++;
-  //   Bound(obstacle_free_confidence, 0, max_trajectory_confidence);
-  // }
-  // else if(color_count < color_count_threshold){ // Fly cautiously when there are a few objects in sight
-  //   obstacle_free_confidence++;
-  //   Bound(obstacle_free_confidence, 0, max_trajectory_confidence * 0.6);
-  // } else { // Remove confidence if there are too many obstacles in the field
-  //   obstacle_free_confidence -= 2; 
-  //   Bound(obstacle_free_confidence, 0, max_trajectory_confidence * 0.6);
-
-  //   VERBOSE_PRINT("DETECTING OBSTACLE! Setting confidence level to %d\n", obstacle_free_confidence);
-  // }
-
   cnt_L = 0;
   cnt_M = 0;
   cnt_R = 0;
@@ -205,33 +187,30 @@ void orange_avoider_periodic(void)
       cnt_R++;
     }
   }
-  VERBOSE_PRINT("L: %d M: %d R: %d", cnt_L, cnt_M, cnt_R);
+  VERBOSE_PRINT("L: %d M: %d R: %d\n", cnt_L, cnt_M, cnt_R);
   
 
   color_count_threshold = cv_test.obstacle_num;
   //mid_pix_count_threshold = 0;
-  int width_threshold = 50;  
 
     // update our safe confidence using color threshold
   //if(color_count < color_count_threshold){ 
-    if(cv_test.obstacle_num == 0){ 
+  if(max_width_all(cv_test) < obs_width_threshold){ 
     obstacle_free_confidence++;
   } else { // Remove confidence if there are too many obstacles in the field
     obstacle_free_confidence -= 2; 
 
-    VERBOSE_PRINT("DETECTING OBSTACLE! Setting confidence level to %d\n", obstacle_free_confidence);
+    VERBOSE_PRINT("DETECTING OBSTACLE! (width = %d) Setting confidence level to %d\n", max_width_all(cv_test), obstacle_free_confidence);
   }
 
   // Bound the speed depending on the amount of obstacles in sight
   Bound(obstacle_free_confidence, 0, max_trajectory_confidence);
-  ////float moveDistance = clip(1 - 0.5*color_count/color_count_threshold, 0, 1) * obstacle_free_confidence * maxDistance / max_trajectory_confidence;
-
-    float moveDistance = fminf(maxDistance, 0.5f * obstacle_free_confidence);
+  //float moveDistance = clip(1 - 0.5*color_count/color_count_threshold, 0, 1) * obstacle_free_confidence * maxDistance / max_trajectory_confidence;
+  float moveDistance = maxSpeed * obstacle_free_confidence / (float)max_trajectory_confidence;
 
   switch (navigation_state){
     case SAFE:
-        if(cnt_M > 0 && max_width(cv_test, index_M, cnt_M) <= width_threshold){
-      //if(cnt_M > mid_pix_count_threshold){
+      if(cnt_M > 0 && max_width(cv_test, index_M, cnt_M) <= obs_width_threshold){ // If there is an obstacle in the middle, but still far, move aside and continue flying
         // Move waypoint slightly sideways
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
           chooseIncrementAvoidance(); 
@@ -241,10 +220,7 @@ void orange_avoider_periodic(void)
         increase_nav_heading(0);
         moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
       }
-      else if (cnt_M > 0 && max_width(cv_test, index_M, cnt_M) > width_threshold){
-        navigation_state = SEARCH_FOR_SAFE_HEADING;
-        
-       } else {
+      else {
         // Move waypoint forward
         moveWaypointForward(WP_TRAJECTORY, 1.5f * moveDistance);
         lockChangeHeading = 0; // Reset heading lock
@@ -269,7 +245,7 @@ void orange_avoider_periodic(void)
 
       chooseIncrementAvoidance();
       // randomly select new search direction
-      //chooseRandomIncrementAvoidance();
+      chooseIncrementAvoidance();
       navigation_state = SEARCH_FOR_SAFE_HEADING;
 
       break;
@@ -279,6 +255,7 @@ void orange_avoider_periodic(void)
       increase_nav_heading(0);
       // make sure we have a couple of good readings before declaring the way safe
       if (obstacle_free_confidence >= 2){
+        lockChangeHeading = 0;
         navigation_state = SAFE;
       }
       break;
@@ -414,9 +391,9 @@ uint8_t chooseRandomIncrementAvoidance(void)
   }
 
     // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
-  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 0.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
+  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
   if(InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY)) == 0){
-    heading_increment = -fabs(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
+    heading_increment = -(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
     VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
   }
 
@@ -429,17 +406,20 @@ uint8_t chooseRandomIncrementAvoidance(void)
 uint8_t chooseIncrementAvoidance(void)
 {
   heading_num = 0;
-  if(cnt_L > cnt_R){
+  if(cnt_L == cnt_R){ // If equal obstacle counts, move to a random direction
+    chooseRandomIncrementAvoidance();
+  }
+  else if(cnt_L > cnt_R){ // If more obstacles left than right, move clockwise
     heading_increment = max_heading_increment;
   }
-  else{
+  else{ // If more obstacles right than left, move counter clockwise
     heading_increment = -max_heading_increment;
   }
 
   // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
-  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 0.5f, heading_increment / fabs(heading_increment) * 5.0f); // checks x degrees left or right depending on current heading angle
+  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
   if(InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY)) == 0){
-    heading_increment = -fabs(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
+    heading_increment = -(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
     VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
   }
 
