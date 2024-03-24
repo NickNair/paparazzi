@@ -187,7 +187,7 @@ void orange_avoider_periodic(void)
       cnt_R++;
     }
   }
-  //VERBOSE_PRINT("L: %d M: %d R: %d\n", cnt_L, cnt_M, cnt_R);
+  VERBOSE_PRINT("L: %d M: %d R: %d\n", cnt_L, cnt_M, cnt_R);
   
 
   color_count_threshold = cv_test.obstacle_num;
@@ -215,7 +215,6 @@ void orange_avoider_periodic(void)
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
           chooseIncrementAvoidance(); 
           lockChangeHeading = 1;
-          VERBOSE_PRINT("Heading locked!");
         }
 
         increase_nav_heading(0);
@@ -225,7 +224,6 @@ void orange_avoider_periodic(void)
         // Move waypoint forward
         moveWaypointForward(WP_TRAJECTORY, 1.5f * moveDistance);
         lockChangeHeading = 0; // Reset heading lock
-        VERBOSE_PRINT("Heading unlocked!");
       }
 
       // Make sure GOAL is inside bounds
@@ -246,7 +244,7 @@ void orange_avoider_periodic(void)
       waypoint_move_here_2d(WP_TRAJECTORY);
 
       // randomly select new search direction
-      chooseRandomIncrementAvoidance();
+      chooseIncrementAvoidance();
       navigation_state = SEARCH_FOR_SAFE_HEADING;
 
       break;
@@ -257,7 +255,6 @@ void orange_avoider_periodic(void)
       // make sure we have a couple of good readings before declaring the way safe
       if (obstacle_free_confidence >= 2){
         lockChangeHeading = 0;
-        VERBOSE_PRINT("Heading unlocked!");
         navigation_state = SAFE;
       }
       break;
@@ -266,7 +263,6 @@ void orange_avoider_periodic(void)
       if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
         chooseIncrementAvoidance(); 
         lockChangeHeading = 1;
-        VERBOSE_PRINT("Heading locked!");
       }
 
       increase_nav_heading(2);
@@ -278,7 +274,6 @@ void orange_avoider_periodic(void)
 
         // Reset heading lock
         lockChangeHeading = 0;
-        VERBOSE_PRINT("Heading unlocked!");
 
         // reset safe counter
         obstacle_free_confidence = 0;
