@@ -81,10 +81,10 @@ float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
 float heading_increment = 20.f;          // Current setting for heading angle increment [deg]
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
-float maxDistance = 1.5;               // max waypoint displacement [m]
+float maxDistance = 2.5;               // max waypoint displacement [m]
 
 
-const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
+const int16_t max_trajectory_confidence = 5; // number of consecutive negative object detections to be sure we are obstacle free
 
 
 /*
@@ -210,7 +210,7 @@ void orange_avoider_periodic(void)
 
   color_count_threshold = cv_test.obstacle_num;
   //mid_pix_count_threshold = 0;
-  int width_threshold = 60;  
+  int width_threshold = 50;  
 
     // update our safe confidence using color threshold
   //if(color_count < color_count_threshold){ 
@@ -226,7 +226,7 @@ void orange_avoider_periodic(void)
   Bound(obstacle_free_confidence, 0, max_trajectory_confidence);
   ////float moveDistance = clip(1 - 0.5*color_count/color_count_threshold, 0, 1) * obstacle_free_confidence * maxDistance / max_trajectory_confidence;
 
-    float moveDistance = fminf(maxDistance, 1.0f * obstacle_free_confidence);
+    float moveDistance = fminf(maxDistance, 0.5f * obstacle_free_confidence);
 
   switch (navigation_state){
     case SAFE:
@@ -267,8 +267,9 @@ void orange_avoider_periodic(void)
       waypoint_move_here_2d(WP_GOAL);
       waypoint_move_here_2d(WP_TRAJECTORY);
 
+      chooseIncrementAvoidance();
       // randomly select new search direction
-      chooseRandomIncrementAvoidance();
+      //chooseRandomIncrementAvoidance();
       navigation_state = SEARCH_FOR_SAFE_HEADING;
 
       break;
@@ -284,7 +285,7 @@ void orange_avoider_periodic(void)
     case OUT_OF_BOUNDS:
       // Change increment direction in a 'smart' way
       if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
-        chooseIncrementAvoidance(); 
+        chooseRandomIncrementAvoidance(); 
         lockChangeHeading = 1;
       }
 
@@ -413,7 +414,7 @@ uint8_t chooseRandomIncrementAvoidance(void)
   }
 
     // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
-  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 2.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
+  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 0.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
   if(InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY)) == 0){
     heading_increment = -fabs(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
     VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");
@@ -436,7 +437,7 @@ uint8_t chooseIncrementAvoidance(void)
   }
 
   // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
-  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 2.5f, heading_increment / fabs(heading_increment) * 90.0f); // checks x degrees left or right depending on current heading angle
+  moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 0.5f, heading_increment / fabs(heading_increment) * 5.0f); // checks x degrees left or right depending on current heading angle
   if(InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY)) == 0){
     heading_increment = -fabs(heading_increment); // If the new direction points outside the cyberzoo, just take the other direction
     VERBOSE_PRINT("Flipped sign of avoidance increment because it is near the edge of the cyberzoo.\n");

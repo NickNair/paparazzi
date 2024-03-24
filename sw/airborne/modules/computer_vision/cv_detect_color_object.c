@@ -749,7 +749,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
   int num_final_obs = 0;
   coordinates obstacle_start = {.x = 0, .y = 0};
   coordinates obstacle_end = {.x = 0, .y = 0};
-  const int MAX_DIST = 40;
+  const int MAX_DIST = 30;
   int prev_point_y = -1, y_idx = -1, x_idx = -1;
 
   for (int i = 0; i < num_obs_coord; i++) {
