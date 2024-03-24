@@ -174,7 +174,7 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
   for (uint32_t i = 0; i < count; i++) {
     global_filters_new[filter-1].obs[i].x = final_coordinates[i].start.x;
     global_filters_new[filter-1].obs[i].y = (final_coordinates[i].start.y + final_coordinates[i].end.y) / 2.0;
-    global_filters_new[filter-1].obs[i].width = abs(final_coordinates[i].start.y + final_coordinates[i].end.y);
+    global_filters_new[filter-1].obs[i].width = abs(final_coordinates[i].start.y - final_coordinates[i].end.y);
   }
   global_filters_new[filter-1].updated = true;
   global_filters_new[filter-1].obstacle_num = count;
