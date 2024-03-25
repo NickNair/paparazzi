@@ -174,7 +174,7 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
   for (uint32_t i = 0; i < count; i++) {
     global_filters_new[filter-1].obs[i].x = final_coordinates[i].start.x;
     global_filters_new[filter-1].obs[i].y = (final_coordinates[i].start.y + final_coordinates[i].end.y) / 2.0;
-    global_filters_new[filter-1].obs[i].width = abs(final_coordinates[i].start.y + final_coordinates[i].end.y);
+    global_filters_new[filter-1].obs[i].width = abs(final_coordinates[i].start.y - final_coordinates[i].end.y);
   }
   global_filters_new[filter-1].updated = true;
   global_filters_new[filter-1].obstacle_num = count;
@@ -713,7 +713,7 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
   coordinates obstacle_end = {.x = 0, .y = 0};
   uint32_t dist = 0;
   const int MAX_DIST_SQ = 15^2;
-  const int CN_MAX_DIST_SQ = 200^2;
+  const int CN_MAX_DIST_SQ = 100^2;
   int num_obstacles = 0;
 
   int inside_obstacle = 0, corner_obstacle = 0;
@@ -732,16 +732,16 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
           // It can't differentiate between obstacle and no green floor anymore
           // // Detects obstacle on left edge
           // TODO: Maybe try to add larger width to qualify these edges as obstacles
-          // if (row <= 5 && col <= 5 && pixel_value == 0) {
-          //   prev_pixel = 1;
-          //   corner_obstacle = 1;
-          // }
+          if (row <= 5 && col <= 5 && pixel_value == 0) {
+            prev_pixel = 1;
+            corner_obstacle = 1;
+          }
 
-          // // Detects obstacle on right edge
-          // if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
-          //   pixel_value = 1;
-          //   corner_obstacle = 1;
-          // }
+          // Detects obstacle on right edge
+          if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
+            pixel_value = 1;
+            corner_obstacle = 1;
+          }
 
           // Check for transition from white to black (start of obstacle)
           if (inside_obstacle == 0 && pixel_value == 0 && prev_pixel == 1) {
@@ -756,13 +756,13 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
 
             if (dist > MAX_DIST_SQ) {
 
-                // if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
-                obstacle_pos[num_obstacles].start.x = obstacle_start.x;
-                obstacle_pos[num_obstacles].start.y = obstacle_start.y;
-                obstacle_pos[num_obstacles].end.x = obstacle_end.x;
-                obstacle_pos[num_obstacles].end.y = obstacle_end.y;
-                num_obstacles++;
-                // }
+                if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
+                  obstacle_pos[num_obstacles].start.x = obstacle_start.x;
+                  obstacle_pos[num_obstacles].start.y = obstacle_start.y;
+                  obstacle_pos[num_obstacles].end.x = obstacle_end.x;
+                  obstacle_pos[num_obstacles].end.y = obstacle_end.y;
+                  num_obstacles++;
+                }
                 
             }
               inside_obstacle = 0;
