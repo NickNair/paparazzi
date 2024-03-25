@@ -263,6 +263,14 @@ void color_object_detector_init(void)
  * @param draw - whether or not to draw on image
  * @return number of pixels of image within the filter bounds.
  */
+bool first_frame = true;
+uint8_t update_y = 0;
+uint8_t update_u = 0;
+uint8_t update_v = 0;
+uint32_t avg_y = 0;
+uint32_t avg_u = 0;
+uint32_t avg_v = 0;
+uint32_t counted = 0;
 uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc, bool draw,
                               uint8_t lum_min, uint8_t lum_max,
                               uint8_t cb_min, uint8_t cb_max,
@@ -281,7 +289,23 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
   int num_obs_coord = 0;
 
   int num_final_obs = 0;
+  
+  if (0) { 
+    lum_min = 0 ;
+    lum_max = update_y * 1.5; 
 
+    cb_min = 0;
+    cb_max = update_u * 1.5;
+
+    cr_min = 0;
+    cr_max = update_v * 1.5; 
+    first_frame = false;
+    avg_y = 0;
+    avg_u = 0;
+    avg_v = 0;
+    counted = 0;
+  }
+  
   uint8_t** Filtered_img = (uint8_t**)malloc(img->h * sizeof(uint8_t*));
   for (int i = 0; i < img->h; i++) {
     Filtered_img[i] = (uint8_t*)malloc(img->w * sizeof(uint8_t));
@@ -311,6 +335,13 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
       if ( (*yp >= lum_min) && (*yp <= lum_max) &&
           (*up >= cb_min ) && (*up <= cb_max ) &&
           (*vp >= cr_min ) && (*vp <= cr_max )) {
+        avg_y += *yp;
+        avg_u += *up;
+        avg_v += *vp;
+        counted++;
+        //update_y = *yp;
+        //update_u = *up;
+        //update_v = *vp;
         Filtered_img[y][x] = 1;
       } else {
         Filtered_img[y][x] = 0;
@@ -318,6 +349,10 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
 
     }
   }
+
+  update_y = avg_y / counted;
+  update_u = avg_u / counted;
+  update_v = avg_v / counted;
 
   // Can make kernel for erosion to 4 if any issues
   // Processing only part of the image
@@ -719,7 +754,7 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
   coordinates obstacle_end = {.x = 0, .y = 0};
   uint32_t dist = 0;
   const int MAX_DIST_SQ = 15^2;
-  const int CN_MAX_DIST_SQ = 200^2;
+  const int CN_MAX_DIST_SQ = 100^2;
   int num_obstacles = 0;
 
   int inside_obstacle = 0, corner_obstacle = 0;
@@ -738,16 +773,16 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
           // It can't differentiate between obstacle and no green floor anymore
           // // Detects obstacle on left edge
           // TODO: Maybe try to add larger width to qualify these edges as obstacles
-          // if (row <= 5 && col <= 5 && pixel_value == 0) {
-          //   prev_pixel = 1;
-          //   corner_obstacle = 1;
-          // }
+          if (row <= 5 && col <= 5 && pixel_value == 0) {
+             prev_pixel = 1;
+             corner_obstacle = 1;
+          }
 
           // // Detects obstacle on right edge
-          // if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
-          //   pixel_value = 1;
-          //   corner_obstacle = 1;
-          // }
+          if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
+             pixel_value = 1;
+             corner_obstacle = 1;
+          }
 
           // Check for transition from white to black (start of obstacle)
           if (inside_obstacle == 0 && pixel_value == 0 && prev_pixel == 1) {
@@ -762,13 +797,13 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
 
             if (dist > MAX_DIST_SQ) {
 
-                // if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
+                if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
                 obstacle_pos[num_obstacles].start.x = obstacle_start.x;
                 obstacle_pos[num_obstacles].start.y = obstacle_start.y;
                 obstacle_pos[num_obstacles].end.x = obstacle_end.x;
                 obstacle_pos[num_obstacles].end.y = obstacle_end.y;
                 num_obstacles++;
-                // }
+                }
                 
             }
               inside_obstacle = 0;

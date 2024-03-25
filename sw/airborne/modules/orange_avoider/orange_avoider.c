@@ -83,7 +83,7 @@ float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
 float heading_increment = 20.f;          // Current setting for heading angle increment [deg]
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
-float maxSpeed = 1.2;               // max waypoint displacement [m]
+float maxSpeed = 1.0;               // max waypoint displacement [m]
 int obs_width_threshold = 80;
 
 const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
@@ -197,14 +197,18 @@ void orange_avoider_periodic(void)
 
     // update our safe confidence using color threshold
   //if(color_count < color_count_threshold){ 
-  if(max_width_all(cv_test) < obs_width_threshold){ 
-    obstacle_free_confidence++;
-  } else { // Remove confidence if there are too many obstacles in the field
-    obstacle_free_confidence -= 2; 
+  if (navigation_state != CRITICAL_ZONE) {
+      if(max_width_all(cv_test) < obs_width_threshold){ 
+        obstacle_free_confidence++;
+      }
+      else { // Remove confidence if there are too many obstacles in the field
+        obstacle_free_confidence = 0; 
 
     VERBOSE_PRINT("DETECTING OBSTACLE! (width = %d) Setting confidence level to %d\n", max_width_all(cv_test), obstacle_free_confidence);
+      }
+  } else {
+        obstacle_free_confidence = 0;
   }
-
   // Bound the speed depending on the amount of obstacles in sight
   Bound(obstacle_free_confidence, 0, max_trajectory_confidence);
   //float moveDistance = clip(1 - 0.5*color_count/color_count_threshold, 0, 1) * obstacle_free_confidence * maxDistance / max_trajectory_confidence;
@@ -212,7 +216,6 @@ void orange_avoider_periodic(void)
 
   uint32_t _green = cv_test.green_count;
 
-  VERBOSE_PRINT("CONDITION = %d, GREEN = %d\n", navigation_state, _green);
   /*if ((!_green) && navigation_state != SEARCH_FOR_SAFE_HEADING) {
             navigation_state = 
             uint8_t flag_critical = 0;CRITICAL_ZONE; 
@@ -223,7 +226,7 @@ void orange_avoider_periodic(void)
 
   switch (navigation_state){
     case SAFE:
-      if(cnt_M > 0 && max_width(cv_test, index_M, cnt_M) <= obs_width_threshold){ // If there is an obstacle in the middle, but still far, move aside and continue flying
+      if(cnt_M > 0 ) {// && max_width(cv_test, index_M, cnt_M) <= obs_width_threshold){ // If there is an obstacle in the middle, but still far, move aside and continue flying
         // Move waypoint slightly sideways
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
           chooseIncrementAvoidance(); 
@@ -231,13 +234,13 @@ void orange_avoider_periodic(void)
         }
 
         increase_nav_heading(0);
-        moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
+        moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, (heading_increment / fabs(heading_increment)) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
       }
-      else {
+      /*else {
         // Move waypoint forward
         moveWaypointForward(WP_TRAJECTORY, 1.5f * moveDistance);
         lockChangeHeading = 0; // Reset heading lock
-      }
+      }*/
 
       // Make sure GOAL is inside bounds
       if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
@@ -271,7 +274,7 @@ void orange_avoider_periodic(void)
 
       increase_nav_heading(0);
       // make sure we have a couple of good readings before declaring the way safe
-      if (obstacle_free_confidence >= 2){
+      if (obstacle_free_confidence >= 3){
         lockChangeHeading = 0;
         navigation_state = SAFE;
       }
@@ -280,23 +283,20 @@ void orange_avoider_periodic(void)
     case CRITICAL_ZONE: 
       //Stop
       //chooseIncrementAvoidance();
-      waypoint_move_here_2d(WP_GOAL);
-      waypoint_move_here_2d(WP_TRAJECTORY);
-      
-        
-      
-    
-      
-      increase_nav_heading(5);
+      if (!flag_critical) {
+          waypoint_move_here_2d(WP_GOAL);
+          waypoint_move_here_2d(WP_TRAJECTORY);
+          flag_critical = 1;
+       }
+      heading_increment = 5;
+      increase_nav_heading(0);
       moveWaypointForward(WP_TRAJECTORY, 0.0);
       moveWaypointForward(WP_GOAL, 0.0);
 
-      if (_green < 10000)
-         //if (cv_test.obstacle_num < 1)
-         if (!flag_critical) {
+      if (_green < 12000) {
+             VERBOSE_PRINT("CONDITION = %d, GREEN = %d\n", navigation_state, _green);
              navigation_state = CRITICAL_ZONE;
-             flag_critical = 1;
-         }
+      }
       else
          navigation_state = SAFE;
     break;
@@ -338,8 +338,9 @@ uint8_t increase_nav_heading(int min_heading_num)
 {
   if (heading_num > min_heading_num) { // if this is not the first try, reduce rotation to 5 degrees, but keep same direction
       if (fabs(heading_increment) > min_heading_increment) {
-          heading_increment = heading_increment/2.0;
+          heading_increment = heading_increment/4.0;
       } 
+      heading_increment = (heading_increment < min_heading_increment) ? min_heading_increment : heading_increment;
   }
   heading_num++;
   float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(heading_increment);
@@ -350,7 +351,7 @@ uint8_t increase_nav_heading(int min_heading_num)
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
 
-  // VERBOSE_PRINT("Increasing heading (%i) with %f degrees to %f\n", heading_num, heading_increment, DegOfRad(new_heading));
+  VERBOSE_PRINT("Increasing heading (%i) with %f degrees to %f\n", heading_num, heading_increment, DegOfRad(new_heading));
   return false;
 }
 
@@ -426,10 +427,10 @@ uint8_t chooseRandomIncrementAvoidance(void)
   // Randomly choose CW or CCW avoiding direction
   if (rand() % 2 == 0) {
     heading_increment = max_heading_increment;
-    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
+    VERBOSE_PRINT("Set avoidance Random increment to: %f\n", heading_increment);
   } else {
     heading_increment = -max_heading_increment;
-    VERBOSE_PRINT("Set avoidance increment to: %f\n", heading_increment);
+    VERBOSE_PRINT("Set avoidance Random increment to: %f\n", heading_increment);
   }
 
     // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
@@ -448,14 +449,16 @@ uint8_t chooseRandomIncrementAvoidance(void)
 uint8_t chooseIncrementAvoidance(void)
 {
   heading_num = 0;
-  if(cnt_L == cnt_R){ // If equal obstacle counts, move to a random direction
-    chooseRandomIncrementAvoidance();
+  if(cnt_L == cnt_R && (cnt_M != 0)){ // If equal obstacle counts, move to a random direction
+    //chooseRandomIncrementAvoidance();
+    int heading_increment_sign = (heading_increment > 0) ? 1: -1;
+    heading_increment = heading_increment_sign * max_heading_increment;
   }
   else if(cnt_L > cnt_R){ // If more obstacles left than right, move clockwise
     heading_increment = max_heading_increment;
   }
   else{ // If more obstacles right than left, move counter clockwise
-    heading_increment = -max_heading_increment;
+    heading_increment = -max_heading_increment;  //make it negative again (TEST)
   }
 
   // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction
