@@ -76,12 +76,12 @@ uint32_t cnt_L = 0;
 uint32_t cnt_M = 0;
 uint32_t cnt_R = 0;
 int16_t obstacle_free_confidence = 0;   // a measure of how certain we are that the way ahead is safe.
-float max_heading_increment = 20.0f;
+float max_heading_increment = 5.0f;
 float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
-float heading_increment = 20.f;          // Current setting for heading angle increment [deg]
+float heading_increment = 5.0f;          // Current setting for heading angle increment [deg]
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
-float maxSpeed = 1.2;               // max waypoint displacement [m]
+float maxSpeed = 0.8;               // max waypoint displacement [m]
 int obs_width_threshold = 80;
 
 const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
