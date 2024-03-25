@@ -219,7 +219,7 @@ void orange_avoider_periodic(void)
         increase_nav_heading(0);
         moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
       }
-      else if (cnt_M > 0 && max_width(cv_test, index_M, cnt_M) > width_threshold){
+      else if (cnt_M > 0 && max_width(cv_test, index_M, cnt_M) > obs_width_threshold){
         navigation_state = SEARCH_FOR_SAFE_HEADING;
         
        } else {
