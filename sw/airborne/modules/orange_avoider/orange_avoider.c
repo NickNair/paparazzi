@@ -81,8 +81,8 @@ float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
 float heading_increment = 20.f;          // Current setting for heading angle increment [deg]
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
-float maxSpeed = 1.2;               // max waypoint displacement [m]
-int obs_width_threshold = 80;
+float maxSpeed = 1.5;               // max waypoint displacement [m]
+int obs_width_threshold = 100;
 
 const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
 float heading_history[1000] = {0.0f};
@@ -148,6 +148,7 @@ int max_width_all(cv_test_global obs_info)
   }
   return _max;
 }
+
 
 /*
  * Initialisation function, setting the colour filter, random seed and heading_increment
@@ -246,7 +247,6 @@ void orange_avoider_periodic(void)
 
       chooseIncrementAvoidance();
       // randomly select new search direction
-      chooseIncrementAvoidance();
       navigation_state = SEARCH_FOR_SAFE_HEADING;
 
       break;
@@ -282,7 +282,7 @@ void orange_avoider_periodic(void)
 
         // ensure direction is safe before continuing
         navigation_state = SEARCH_FOR_SAFE_HEADING;
-      }
+      } else heading_increment = heading_increment/fabs(heading_increment) * 40.0f;
       break;
     default:
       break;
@@ -296,36 +296,48 @@ void orange_avoider_periodic(void)
 uint8_t increase_nav_heading(int min_heading_num)
 {
   if (heading_num > min_heading_num) { // if this is not the first try, reduce rotation to 5 degrees, but keep same direction
-      if (fabs(heading_increment)/2.0 > min_heading_increment) {
+      if (fabs(heading_increment)/2.0 >= min_heading_increment) {
           heading_increment = heading_increment/2.0;
       } 
   }
   heading_history[heading_num] = stateGetNedToBodyEulers_f()->psi;
 
-  if (heading_num > 2 && fabs(heading_history[heading_num] - heading_history[heading_num-2]) < 0.0523599){
-    VERBOSE_PRINT(" num: %d 1:  %f 2: %f\n",  heading_num, DegOfRad(heading_history[heading_num-1]), DegOfRad(heading_history[heading_num]));
-    heading_increment = - heading_increment / fabs(heading_increment) * 90.0f;   
+  if (heading_num > 2 && fabs(heading_history[heading_num-2] - heading_history[heading_num]) < 0.0523599){
+     // stop
+    waypoint_move_here_2d(WP_GOAL);
+    waypoint_move_here_2d(WP_TRAJECTORY);
+    VERBOSE_PRINT(" state: %d num: %d 1:  %f 2: %f\n", navigation_state, heading_num, DegOfRad(heading_history[heading_num-2]), DegOfRad(heading_history[heading_num]));
+    heading_increment = - heading_increment / fabs(heading_increment) * 20.0f;   
     heading_num = 0;
-     // heading_history[0] = 0.0f;
-     // heading_history[1] = 0.0f;
-  }
-    // if (new_heading > 0 && heading_history[0] < (heading_history[1] + 2) && heading_history[0] > (heading_history[1] - 2)){
-    //    heading_increment = - heading_increment;
-    //    heading_history[0] = 0.0f;
-    //   heading_history[1] = 0.0f;
-    // }
-
-  heading_num++;
-  float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(heading_increment);
+    float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(heading_increment);
 
   // normalize heading to [-pi, pi]
-  FLOAT_ANGLE_NORMALIZE(new_heading);
+    FLOAT_ANGLE_NORMALIZE(new_heading);
+
+    nav_set_heading_rad(new_heading);
+    moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 0.5f, heading_increment);
+    moveWaypointForwardWithOffsetAngle(WP_GOAL, 0.7f, heading_increment);
+    
+    VERBOSE_PRINT("Increasing heading (%i) with %f degrees to %f\n", heading_num, heading_increment, DegOfRad(new_heading));
+  //  moveWaypointForward(WP_TRAJECTORY, 0.5f);
+  //  moveWaypointForward(WP_GOAL, 0.7f);
+  }
+  else {
+    float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(heading_increment);
+
+  // normalize heading to [-pi, pi]
+    FLOAT_ANGLE_NORMALIZE(new_heading);
 
 
   // set heading, declared in firmwares/rotorcraft/navigation.h
-  nav.heading = new_heading;
+    nav.heading = new_heading;
 
-  VERBOSE_PRINT("Increasing heading (%i) with %f degrees to %f\n", heading_num, heading_increment, DegOfRad(new_heading));
+    VERBOSE_PRINT("Increasing heading (%i) with %f degrees to %f\n", heading_num, heading_increment, DegOfRad(new_heading));
+  }
+
+  heading_num++;
+  
+
   return false;
 }
 
