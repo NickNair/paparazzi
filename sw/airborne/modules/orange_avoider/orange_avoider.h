@@ -29,6 +29,7 @@ typedef struct cv_test_global_t {
     uint8_t obstacle_num;
     bool updated;
     obs_data_t obs[10];
+    uint32_t green_count;
 } cv_test_global;
 
 

@@ -95,6 +95,7 @@ typedef struct {
 
 cv_test_global global_filters_new[2];
 
+uint32_t green_count = 0;
 
 // Function
 uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc, bool draw,
@@ -112,6 +113,7 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
 int compare_obs_pos(const void *a, const void *b);
 int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord);
 
+bool green_flag = false;
 /*
  * object_detector
  * @param img - input image to process
@@ -176,9 +178,12 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
     global_filters_new[filter-1].obs[i].y = (final_coordinates[i].start.y + final_coordinates[i].end.y) / 2.0;
     global_filters_new[filter-1].obs[i].width = abs(final_coordinates[i].start.y - final_coordinates[i].end.y);
   }
+  global_filters_new[filter-1].green_count = green_count;
   global_filters_new[filter-1].updated = true;
   global_filters_new[filter-1].obstacle_num = count;
   pthread_mutex_unlock(&mutex);
+  
+  green_count = 0;
 
   // VERBOSE_PRINT("Final array new: %d\n", count);
   // for (size_t i = 0; i < count; i++) {
@@ -269,6 +274,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
   uint32_t tot_y = 0;
   uint8_t *buffer = img->buf;
   const float crop_factor = 0.5;
+  
 
   int w_scan_limit = img->w * crop_factor;
 
@@ -343,7 +349,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
           *yp = 81;
           *up = 90;
           *vp = 240;
-
+          green_count++;
       }
     }
   }
@@ -850,7 +856,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
     obstacle_end.x = obs_coord[y_idx].end.x;
     obstacle_end.y = obs_coord[y_idx].end.y;
 
-    if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) {
+    if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST && (length > 5)) {
       f_coord[num_final_obs].start.x = obs_coord[x_idx].start.x;
       f_coord[num_final_obs].start.y = obs_coord[y_idx].start.y;
 

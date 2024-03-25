@@ -53,16 +53,18 @@ static uint8_t increase_nav_heading(int min_heading_num);
 static uint8_t chooseRandomIncrementAvoidance(void);
 static uint8_t chooseIncrementAvoidance(void);
 static int max_width(cv_test_global obs_info, int* idx_arr, int size);
-
+float euler_angle;
 enum navigation_state_t {
   SAFE,
   OBSTACLE_FOUND,
   SEARCH_FOR_SAFE_HEADING,
+  CRITICAL_ZONE,
   OUT_OF_BOUNDS
 };
 
 cv_test_global cv_test;
 
+uint8_t flag_critical = 0;
 // define settings
 float oa_color_count_frac = 0.22f; // Threshold for allowed obstacle pixels in the frame
 uint32_t color_count_threshold; // To be initialized in init()
@@ -207,6 +209,17 @@ void orange_avoider_periodic(void)
   // float moveDistance = maxSpeed * obstacle_free_confidence / (float)max_trajectory_confidence;
   float moveDistance = fminf(maxSpeed, 1.0f * obstacle_free_confidence);
 
+  uint32_t _green = cv_test.green_count;
+
+  VERBOSE_PRINT("CONDITION = %d, GREEN = %d\n", navigation_state, _green);
+  /*if ((!_green) && navigation_state != SEARCH_FOR_SAFE_HEADING) {
+            navigation_state = 
+            uint8_t flag_critical = 0;CRITICAL_ZONE; 
+            color_count_threshold = 1;
+            VERBOSE_PRINT("Confidence: %d\n", obstacle_free_confidence);
+        VERBOSE_PRINT("CASE GEEN GREEN \n");
+    }*/
+
   switch (navigation_state){
     case SAFE:
       if(cnt_M > 0 && max_width(cv_test, index_M, cnt_M) <= obs_width_threshold){ // If there is an obstacle in the middle, but still far, move aside and continue flying
@@ -237,8 +250,13 @@ void orange_avoider_periodic(void)
         moveWaypointForward(WP_GOAL, moveDistance);
       }
 
-        
 
+      if (_green < 8000) {
+            navigation_state = CRITICAL_ZONE; 
+            color_count_threshold = 1;
+            flag_critical = 0;
+      }
+        
       break;
     case OBSTACLE_FOUND:
       // stop
@@ -261,6 +279,31 @@ void orange_avoider_periodic(void)
         navigation_state = SAFE;
       }
       break;
+
+    case CRITICAL_ZONE: 
+      //Stop
+      //chooseIncrementAvoidance();
+      waypoint_move_here_2d(WP_GOAL);
+      waypoint_move_here_2d(WP_TRAJECTORY);
+      
+        
+      
+    
+      
+      increase_nav_heading(5);
+      moveWaypointForward(WP_TRAJECTORY, 0.0);
+      moveWaypointForward(WP_GOAL, 0.0);
+
+      if (_green < 10000)
+         //if (cv_test.obstacle_num < 1)
+         if (!flag_critical) {
+             navigation_state = CRITICAL_ZONE;
+             flag_critical = 1;
+         }
+      else
+         navigation_state = SAFE;
+    break;
+
     case OUT_OF_BOUNDS:
       // Change increment direction in a 'smart' way
       if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
@@ -310,7 +353,7 @@ uint8_t increase_nav_heading(int min_heading_num)
   // set heading, declared in firmwares/rotorcraft/navigation.h
   nav.heading = new_heading;
 
-  VERBOSE_PRINT("Increasing heading (%i) with %f degrees to %f\n", heading_num, heading_increment, DegOfRad(new_heading));
+  // VERBOSE_PRINT("Increasing heading (%i) with %f degrees to %f\n", heading_num, heading_increment, DegOfRad(new_heading));
   return false;
 }
 
