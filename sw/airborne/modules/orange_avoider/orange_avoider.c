@@ -179,10 +179,10 @@ void orange_avoider_periodic(void)
   cnt_R = 0;
   int index_L[10] = {0}, index_M[10] = {0}, index_R[10] = {0}; 
   for (int i = 0; i < cv_test.obstacle_num; i ++) {
-    if(cv_test.obs[i].y <= 170){
+    if(cv_test.obs[i].y <= 150){
       index_L[cnt_L] = i;
       cnt_L++;
-    } else if (cv_test.obs[i].y <= 350){
+    } else if (cv_test.obs[i].y <= 370){
       index_M[cnt_M] = i;
       cnt_M++;
     } else {
@@ -190,7 +190,6 @@ void orange_avoider_periodic(void)
       cnt_R++;
     }
   }
-
 
   if (navigation_state == SAFE) {
     for (int i = 0; i < cnt_M; i++) {
@@ -253,10 +252,11 @@ void orange_avoider_periodic(void)
       }
 
       if ((_green < 8000) || (brake == 1)) {
-          waypoint_move_here_2d(WP_GOAL);
-          waypoint_move_here_2d(WP_TRAJECTORY);
-          navigation_state = CRITICAL_ZONE;
-          flag_critical = 0;
+        // Stop immediately
+        waypoint_move_here_2d(WP_GOAL);
+        waypoint_move_here_2d(WP_TRAJECTORY);
+        navigation_state = CRITICAL_ZONE;
+        flag_critical = 0;
       }
         
       break;
@@ -291,8 +291,8 @@ void orange_avoider_periodic(void)
         
         float heading  = stateGetNedToBodyEulers_f()->psi + RadOfDeg(180);
         // Now determine where to place the waypoint you want to go to
-        new_coor.x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (0.1));
-        new_coor.y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (0.1));
+        new_coor.x = stateGetPositionEnu_i()->x + POS_BFP_OF_REAL(sinf(heading) * (0.20));
+        new_coor.y = stateGetPositionEnu_i()->y + POS_BFP_OF_REAL(cosf(heading) * (0.20));
         moveWaypoint(WP_TRAJECTORY, &new_coor);
         moveWaypoint(WP_GOAL, &new_coor);
         flag_critical = 1;
@@ -300,16 +300,16 @@ void orange_avoider_periodic(void)
 
         VERBOSE_PRINT("Moving Back\n");
       // } else if ((abs(stateGetPositionEnu_i()->x - new_coor.x) < 0.15) && (abs(stateGetPositionEnu_i()->y - new_coor.y) < 0.15)) {
-      } else if (cntr > 8) { 
+      } else if (cntr > 12) {
         heading_increment = 5;
         increase_nav_heading(0);
-        moveWaypointForward(WP_TRAJECTORY, 0.0);
-        moveWaypointForward(WP_GOAL, 0.0);
+        // moveWaypointForward(WP_TRAJECTORY, 0.0);
+        // moveWaypointForward(WP_GOAL, 0.0);
       }
 
       cntr++;
 
-      if ((_green < 12000) || ((brake == 1) && (fabs(stateGetNedToBodyEulers_f()->psi - old_theta) < 0.7))) {
+      if ((_green < 12000) || (cntr <= 12) || ((brake == 1) && (fabs(stateGetNedToBodyEulers_f()->psi - old_theta) < 0.7))) {
           VERBOSE_PRINT("CONDITION = %d, GREEN = %d, cntr = %d\n", navigation_state, _green, cntr);
           navigation_state = CRITICAL_ZONE;
       } else {
@@ -358,8 +358,8 @@ uint8_t increase_nav_heading(int min_heading_num)
 {
   if (heading_num > min_heading_num) { // if this is not the first try, reduce rotation to 5 degrees, but keep same direction
       if (fabs(heading_increment) > min_heading_increment) {
-          heading_increment = heading_increment/4.0;
-      } 
+          heading_increment = heading_increment / 1.5;
+      }
       heading_increment = (heading_increment < min_heading_increment) ? min_heading_increment : heading_increment;
   }
   heading_num++;
