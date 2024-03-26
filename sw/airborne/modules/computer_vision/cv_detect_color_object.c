@@ -290,7 +290,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
 
   int num_final_obs = 0;
   
-  if (0) { 
+  if (!first_frame && counted > 10000) {
     lum_min = 0 ;
     lum_max = update_y * 1.5; 
 
