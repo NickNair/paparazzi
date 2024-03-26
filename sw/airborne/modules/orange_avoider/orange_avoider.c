@@ -82,9 +82,9 @@ float heading_increment = 20.f;          // Current setting for heading angle in
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
 float maxSpeed = 1.5;               // max waypoint displacement [m]
-int obs_width_threshold = 100;
+int obs_width_threshold = 80;
 
-const int16_t max_trajectory_confidence = 6; // number of consecutive negative object detections to be sure we are obstacle free
+const int16_t max_trajectory_confidence = 4; // number of consecutive negative object detections to be sure we are obstacle free
 float heading_history[1000] = {0.0f};
 
 
@@ -214,13 +214,14 @@ void orange_avoider_periodic(void)
     case SAFE:
       if(cnt_M > 0 && max_width(cv_test, index_M, cnt_M) <= obs_width_threshold){ // If there is an obstacle in the middle, but still far, move aside and continue flying
         // Move waypoint slightly sideways
+          obstacle_free_confidence -= 1; 
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
           chooseIncrementAvoidance(); 
           lockChangeHeading = 1;
         }
 
         increase_nav_heading(0);
-        moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 45.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
+        moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.5f * moveDistance, heading_increment / fabs(heading_increment) * 25.0); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
       }
       else {
         // Move waypoint forward
