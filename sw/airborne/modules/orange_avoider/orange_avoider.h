@@ -32,7 +32,7 @@ typedef struct cv_test_global_t {
     uint32_t green_count;
 } cv_test_global;
 
-extern float maxSpeed;
+extern float maxDist;
 extern float max_heading_increment;
 extern int obs_width_threshold;
 
