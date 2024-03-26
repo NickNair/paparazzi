@@ -231,45 +231,25 @@ void orange_avoider_periodic(void)
         // Move waypoint slightly sideways
         if(lockChangeHeading == 0) { // Only change heading once to avoid oscillations
           chooseIncrementAvoidance();
-          heading_increment = (((int)heading_increment / abs((int)heading_increment)) * 20.0);
-          increase_nav_heading(heading_num);
           lockChangeHeading = 1;
         }
+        increase_nav_heading(0);
 
         moveWaypointForwardWithOffsetAngle(WP_TRAJECTORY, 1.25f * moveDistance, heading_increment); // Moves waypoint sideways as well to start avoidance motion early, This is reset once the obstacle is out of view
-
-        // Make sure GOAL is inside bounds
-        if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))) {
-          navigation_state = OUT_OF_BOUNDS;
-        } else if (obstacle_free_confidence == 0){
-          navigation_state = OBSTACLE_FOUND;
-        } else {
-          moveWaypointForwardWithOffsetAngle(WP_GOAL, moveDistance, heading_increment);
-        }
-
       } else {
         // Move waypoint forward
         moveWaypointForward(WP_TRAJECTORY, 1.25f * moveDistance);
         lockChangeHeading = 0; // Reset heading lock
-
-        // Make sure GOAL is inside bounds
-        if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
-          navigation_state = OUT_OF_BOUNDS;
-        } else if (obstacle_free_confidence == 0){
-          navigation_state = OBSTACLE_FOUND;
-        } else {
-          moveWaypointForward(WP_GOAL, moveDistance);
-        }
       }
 
-      // // Make sure GOAL is inside bounds
-      // if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
-      //   navigation_state = OUT_OF_BOUNDS;
-      // } else if (obstacle_free_confidence == 0){
-      //   navigation_state = OBSTACLE_FOUND;
-      // } else {
-      //   moveWaypointForward(WP_GOAL, moveDistance);
-      // }
+      // Make sure GOAL is inside bounds
+      if (!InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
+        navigation_state = OUT_OF_BOUNDS;
+      } else if (obstacle_free_confidence == 0){
+        navigation_state = OBSTACLE_FOUND;
+      } else {
+        moveWaypointForward(WP_GOAL, moveDistance);
+      }
 
       if ((_green < 5000) || (brake == 1)) {
         // Stop immediately
@@ -292,10 +272,10 @@ void orange_avoider_periodic(void)
       break;
     case SEARCH_FOR_SAFE_HEADING:
 
-
+      VERBOSE_PRINT("obstacle conf: %d", obstacle_free_confidence);
       increase_nav_heading(0);
       // make sure we have a couple of good readings before declaring the way safe
-      if (obstacle_free_confidence >= 3){
+      if (obstacle_free_confidence >= 2){
         lockChangeHeading = 0;
         navigation_state = SAFE;
       }
@@ -323,8 +303,8 @@ void orange_avoider_periodic(void)
       } else if (cntr > 12) {
         heading_increment = 5;
         increase_nav_heading(0);
-        // moveWaypointForward(WP_TRAJECTORY, 0.0);
-        // moveWaypointForward(WP_GOAL, 0.0);
+        moveWaypointForward(WP_TRAJECTORY, 0.0);
+        moveWaypointForward(WP_GOAL, 0.0);
       }
 
       cntr++;
@@ -333,7 +313,7 @@ void orange_avoider_periodic(void)
           VERBOSE_PRINT("CONDITION = %d, GREEN = %d, cntr = %d\n", navigation_state, _green, cntr);
           navigation_state = CRITICAL_ZONE;
       } else {
-         navigation_state = SAFE;
+         navigation_state = SEARCH_FOR_SAFE_HEADING;
          old_theta = 0;
          brake = 0;
          cntr = 0;
@@ -377,10 +357,10 @@ void orange_avoider_periodic(void)
 uint8_t increase_nav_heading(int min_heading_num)
 {
   if (heading_num > min_heading_num) { // if this is not the first try, reduce rotation to 5 degrees, but keep same direction
-      if (fabs(heading_increment) > min_heading_increment) {
+      if (fabs(heading_increment)/1.5 > min_heading_increment) {
           heading_increment = heading_increment / 1.5;
       }
-      heading_increment = (heading_increment < min_heading_increment) ? min_heading_increment : heading_increment;
+      //heading_increment = (fabs(heading_increment) < min_heading_increment) ? min_heading_increment : heading_increment;
   }
   heading_num++;
   float new_heading = stateGetNedToBodyEulers_f()->psi + RadOfDeg(heading_increment);
@@ -488,23 +468,36 @@ uint8_t chooseRandomIncrementAvoidance(void)
  */
 uint8_t chooseIncrementAvoidance(void)
 {
-  heading_num = 0;
-  if (cnt_M == 0) {
-    // If nothing in middle keep moving straaight
-     heading_increment = 0;
-  } else if (cnt_M > 0 && cnt_L == 0 && cnt_R == 0) {
-    // Obstacle in the middle but none on the left and right
-    // change headinig in the previous direction
-    heading_increment = (((int)heading_increment / abs((int)heading_increment)) * max_heading_increment);
-  } else {
-    if (cnt_R == 0) {
-      heading_increment = max_heading_increment;
-    } else if (cnt_L == 0) {
-      heading_increment = -max_heading_increment;
-    } else {
-      // All directions have obstacles
-      heading_increment = (((int)heading_increment / abs((int)heading_increment)) * 45);  // TODO: Chnage this logic
-    }
+  // heading_num = 0;
+  // if (cnt_M == 0) {
+  //   // If nothing in middle keep moving straaight
+  //    return false;
+  // } else if (cnt_M > 0 && cnt_L == 0 && cnt_R == 0) {
+  //   // Obstacle in the middle but none on the left and right
+  //   // change headinig in the previous direction
+  //   heading_increment = (((int)heading_increment / abs((int)heading_increment)) * max_heading_increment);
+  // } else {
+  //   if (cnt_R == 0) {
+  //     heading_increment = -max_heading_increment;
+  //   } else if (cnt_L == 0) {
+  //     heading_increment = max_heading_increment;
+  //   } else {
+
+  //     // All directions have obstacles
+  //     heading_increment = (((int)heading_increment / abs((int)heading_increment)) * max_heading_increment);
+  //     //heading_increment = (((int)heading_increment / abs((int)heading_increment)) * 45);  // TODO: Chnage this logic
+  //   }
+  // }
+
+   heading_num = 0;
+  if(cnt_L == cnt_R){ // If equal obstacle counts, move to a random direction
+    chooseRandomIncrementAvoidance();
+  }
+  else if(cnt_L > cnt_R){ // If more obstacles left than right, move clockwise
+    heading_increment = max_heading_increment;
+  }
+  else{ // If more obstacles right than left, move counter clockwise
+    heading_increment = - max_heading_increment;
   }
 
   // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction

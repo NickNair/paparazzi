@@ -798,11 +798,11 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
             if (dist > MAX_DIST_SQ) {
 
                 if ((corner_obstacle == 0) || ((corner_obstacle == 1) && (dist > CN_MAX_DIST_SQ))) {
-                obstacle_pos[num_obstacles].start.x = obstacle_start.x;
-                obstacle_pos[num_obstacles].start.y = obstacle_start.y;
-                obstacle_pos[num_obstacles].end.x = obstacle_end.x;
-                obstacle_pos[num_obstacles].end.y = obstacle_end.y;
-                num_obstacles++;
+                  obstacle_pos[num_obstacles].start.x = obstacle_start.x;
+                  obstacle_pos[num_obstacles].start.y = obstacle_start.y;
+                  obstacle_pos[num_obstacles].end.x = obstacle_end.x;
+                  obstacle_pos[num_obstacles].end.y = obstacle_end.y;
+                  num_obstacles++;
                 }
                 
             }
