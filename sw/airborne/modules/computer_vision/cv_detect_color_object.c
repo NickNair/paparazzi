@@ -892,7 +892,8 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
     obstacle_end.x = obs_coord[y_idx].end.x;
     obstacle_end.y = obs_coord[y_idx].end.y;
 
-    if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) {
+    if ((abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) && (length > 5)){
+    //if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) {
       f_coord[num_final_obs].start.x = obs_coord[x_idx].start.x;
       f_coord[num_final_obs].start.y = obs_coord[y_idx].start.y;
 

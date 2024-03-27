@@ -84,7 +84,7 @@ float heading_increment = 5.0f;          // Current setting for heading angle in
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
 float maxDist = 1.0;               // max waypoint displacement [m]
-int obs_width_threshold = 80;
+int obs_width_threshold = 90;
 uint8_t brake = 0;
 
 const int16_t max_trajectory_confidence = 4; // number of consecutive negative object detections to be sure we are obstacle free
@@ -301,11 +301,12 @@ void orange_avoider_periodic(void)
         moveWaypoint(WP_GOAL, &new_coor);
         flag_critical = 1;
         old_theta = stateGetNedToBodyEulers_f()->psi;
+        heading_increment = - heading_increment;
 
         VERBOSE_PRINT("Moving Back\n");
       // } else if ((abs(stateGetPositionEnu_i()->x - new_coor.x) < 0.15) && (abs(stateGetPositionEnu_i()->y - new_coor.y) < 0.15)) {
       } else if (cntr > 12) {
-        heading_increment = 5;
+        
         increase_nav_heading(0);
         moveWaypointForward(WP_TRAJECTORY, 0.0);
         moveWaypointForward(WP_GOAL, 0.0);
