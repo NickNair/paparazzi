@@ -53,7 +53,7 @@ static uint8_t increase_nav_heading(int min_heading_num);
 static uint8_t chooseRandomIncrementAvoidance(void);
 static uint8_t chooseIncrementAvoidance(void);
 static int max_width(cv_test_global obs_info, int* idx_arr, int size);
-float euler_angle;
+
 enum navigation_state_t {
   SAFE,
   OBSTACLE_FOUND,
@@ -78,9 +78,9 @@ uint32_t cnt_L = 0;
 uint32_t cnt_M = 0;
 uint32_t cnt_R = 0;
 int16_t obstacle_free_confidence = 0;   // a measure of how certain we are that the way ahead is safe.
-float max_heading_increment = 20.0f;
+float max_heading_increment = 15.0f;
 float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
-float heading_increment = 20.f;          // Current setting for heading angle increment [deg]
+float heading_increment = 5.0f;          // Current setting for heading angle increment [deg]
 int heading_num = 0;
 int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
 float maxDist = 1.0;               // max waypoint displacement [m]
@@ -211,7 +211,7 @@ void orange_avoider_periodic(void)
         obstacle_free_confidence++;
       }
       else { // Remove confidence if there are too many obstacles in the field
-        obstacle_free_confidence = 0; 
+        obstacle_free_confidence -= 3;
 
     VERBOSE_PRINT("DETECTING OBSTACLE! (width = %d) Setting confidence level to %d\n", max_width_all(cv_test), obstacle_free_confidence);
       }
@@ -279,6 +279,10 @@ void orange_avoider_periodic(void)
         lockChangeHeading = 0;
         navigation_state = SAFE;
       }
+      // moveWaypointForward(WP_TRAJECTORY, 0.0);
+      // moveWaypointForward(WP_GOAL, 0.0);
+      waypoint_move_here_2d(WP_GOAL);
+      waypoint_move_here_2d(WP_TRAJECTORY);
       break;
 
     case CRITICAL_ZONE:
@@ -357,7 +361,7 @@ void orange_avoider_periodic(void)
 uint8_t increase_nav_heading(int min_heading_num)
 {
   if (heading_num > min_heading_num) { // if this is not the first try, reduce rotation to 5 degrees, but keep same direction
-      if (fabs(heading_increment)/1.5 > min_heading_increment) {
+      if (fabs(heading_increment) / 1.5 > min_heading_increment) {
           heading_increment = heading_increment / 1.5;
       }
       //heading_increment = (fabs(heading_increment) < min_heading_increment) ? min_heading_increment : heading_increment;
@@ -497,7 +501,7 @@ uint8_t chooseIncrementAvoidance(void)
     heading_increment = max_heading_increment;
   }
   else{ // If more obstacles right than left, move counter clockwise
-    heading_increment = - max_heading_increment;
+    heading_increment = -max_heading_increment;
   }
 
   // Check if the new direction points to a space within the cyberzone bounds, if not, take the other direction

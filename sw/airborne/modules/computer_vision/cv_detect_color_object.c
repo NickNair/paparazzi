@@ -291,14 +291,15 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
   int num_final_obs = 0;
   
   if (!first_frame && counted > 10000) {
-    lum_min = 0 ;
-    lum_max = update_y * 1.5; 
+    lum_min = update_y * 0.8;
+    lum_max = update_y * 1.2;
 
-    cb_min = 0;
-    cb_max = update_u * 1.5;
+    cb_min = update_u * 0.8;
+    cb_max = update_u * 1.2;
 
-    cr_min = 0;
-    cr_max = update_v * 1.5; 
+    cr_min = update_v * 0.8;
+    cr_max = update_v * 1.2;
+
     first_frame = false;
     avg_y = 0;
     avg_u = 0;
@@ -891,7 +892,7 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
     obstacle_end.x = obs_coord[y_idx].end.x;
     obstacle_end.y = obs_coord[y_idx].end.y;
 
-    if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST && (length > 5)) {
+    if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) {
       f_coord[num_final_obs].start.x = obs_coord[x_idx].start.x;
       f_coord[num_final_obs].start.y = obs_coord[y_idx].start.y;
 
