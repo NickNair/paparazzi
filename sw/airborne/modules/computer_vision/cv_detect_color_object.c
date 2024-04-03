@@ -161,17 +161,6 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
 
   obs_pos *final_coordinates = &obstacle_coordinates[idx];
 
-  // VERBOSE_PRINT("Color count %d: %u, threshold %u, x_c %d, y_c %d\n", camera, object_count, count_threshold, x_c, y_c);
-  // VERBOSE_PRINT("centroid %d: (%d, %d) r: %4.2f a: %4.2f\n", camera, x_c, y_c,
-  //       hypotf(x_c, y_c) / hypotf(img->w * 0.5, img->h * 0.5), RadOfDeg(atan2f(y_c, x_c)));
-
-  // pthread_mutex_lock(&mutex);
-  // global_filters[filter-1].color_count = count;
-  // global_filters[filter-1].x_c = x_c;
-  // global_filters[filter-1].y_c = y_c;
-  // global_filters[filter-1].updated = true;
-  // pthread_mutex_unlock(&mutex);
-
   pthread_mutex_lock(&mutex);
   for (uint32_t i = 0; i < count; i++) {
     global_filters_new[filter-1].obs[i].x = final_coordinates[i].start.x;
@@ -184,11 +173,6 @@ static struct image_t *object_detector(struct image_t *img, uint8_t filter)
   pthread_mutex_unlock(&mutex);
   
   green_count = 0;
-
-  // VERBOSE_PRINT("Final array new: %d\n", count);
-  // for (size_t i = 0; i < count; i++) {
-  //   VERBOSE_PRINT("(%d, %d) - (%d, %d)\n", final_coordinates[i].start.x, final_coordinates[i].start.y, final_coordinates[i].end.x, final_coordinates[i].end.y);
-  // }
 
   free(obstacle_coordinates);
 
@@ -282,14 +266,12 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
   uint32_t tot_y = 0;
   uint8_t *buffer = img->buf;
   const float crop_factor = 0.5;
-  
 
   int w_scan_limit = img->w * crop_factor;
-
   int num_obs_coord = 0;
-
   int num_final_obs = 0;
   
+  // Dynamically update the color thresholding values
   if (!first_frame && counted > 10000) {
     lum_min = update_y * 0.8;
     lum_max = update_y * 1.2;
@@ -340,9 +322,6 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
         avg_u += *up;
         avg_v += *vp;
         counted++;
-        //update_y = *yp;
-        //update_u = *up;
-        //update_v = *vp;
         Filtered_img[y][x] = 1;
       } else {
         Filtered_img[y][x] = 0;
@@ -401,52 +380,6 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
 
   num_final_obs = prune_obstacles(final_coordinates, obstacle_coordinates, num_obs_coord);
 
-  // int prev_point_y = -1, y_idx = -1, x_idx = -1;
-
-  // for (int i = 0; i < num_obs_coord; i++) {
-
-  //     if ((prev_point_y == -1) || (abs(prev_point_y - obstacle_coordinates[i].start.y) >= 10)) {
-
-  //       if (prev_point_y != -1) {
-
-  //         final_coordinates[num_final_obs].start.x = obstacle_coordinates[x_idx].start.x;
-  //         final_coordinates[num_final_obs].start.y = obstacle_coordinates[y_idx].start.y;
-
-  //         final_coordinates[num_final_obs].end.x = obstacle_coordinates[y_idx].end.x;
-  //         final_coordinates[num_final_obs].end.y = obstacle_coordinates[y_idx].end.y;
-
-  //         num_final_obs++;
-
-  //       }
-
-  //       y_idx = i;
-  //       x_idx = i;
-
-
-  //     } else {
-        
-  //       if (obstacle_coordinates[i].start.x < obstacle_coordinates[y_idx].start.x) {
-  //         x_idx = i;
-  //       }
-
-  //     }
-
-  //     prev_point_y = obstacle_coordinates[i].start.y;
-  // }
-
-  // // Add the last obstacle
-  // if (num_obs_coord > 0) {
-  //   final_coordinates[num_final_obs].start.x = obstacle_coordinates[x_idx].start.x;
-  //   final_coordinates[num_final_obs].start.y = obstacle_coordinates[y_idx].start.y;
-
-  //   final_coordinates[num_final_obs].end.x = obstacle_coordinates[y_idx].end.x;
-  //   final_coordinates[num_final_obs].end.y = obstacle_coordinates[y_idx].end.y;
-
-  //   num_final_obs++;
-  // }
-
-
-
   // Draw the start line of obstacle
   for (int i = 0; i < num_final_obs; i++) {
     int x = 0, y = 0;
@@ -501,36 +434,6 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
 
   }
 
-  // // Go through all the pixels
-  // for (uint16_t y = 0; y < img->h; y++) {
-  //   for (uint16_t x = 0; x < img->w; x ++) {
-  //     // Check if the color is inside the specified values
-  //     uint8_t *yp, *up, *vp;
-  //     if (x % 2 == 0) {
-  //       // Even x
-  //       up = &buffer[y * 2 * img->w + 2 * x];      // U
-  //       yp = &buffer[y * 2 * img->w + 2 * x + 1];  // Y1
-  //       vp = &buffer[y * 2 * img->w + 2 * x + 2];  // V
-  //       //yp = &buffer[y * 2 * img->w + 2 * x + 3]; // Y2
-  //     } else {
-  //       // Uneven x
-  //       up = &buffer[y * 2 * img->w + 2 * x - 2];  // U
-  //       //yp = &buffer[y * 2 * img->w + 2 * x - 1]; // Y1
-  //       vp = &buffer[y * 2 * img->w + 2 * x];      // V
-  //       yp = &buffer[y * 2 * img->w + 2 * x + 1];  // Y2
-  //     }
-
-  //     if (Filtered_img[y][x] == 1) {
-  //         *yp = 255;  // make pixel brighter in image
-  //     }
-  //   }
-  // }
-
-  // char filename[100];
-  // snprintf(filename, sizeof(filename), "/home/hardik/Documents/TU_Delft/Q3/MAV/binary_image_%d.bmp", img_num);
-  // save_binary_image(Filtered_img, img->w, img->h, filename);
-  // img_num++;
-
   if (cnt > 0) {
     *p_xc = (int32_t)roundf(tot_x / ((float) cnt) - img->w * 0.5f);
     *p_yc = (int32_t)roundf(img->h * 0.5f - tot_y / ((float) cnt));
@@ -539,7 +442,7 @@ uint32_t find_object_centroid(struct image_t *img, int32_t* p_xc, int32_t* p_yc,
     *p_yc = 0;
   }
 
-      // Free memory allocated for the image
+    // Free memory allocated for the image
     for (int i = 0; i < img->h; i++) {
         free(Filtered_img[i]);
     }
@@ -560,23 +463,12 @@ void color_object_detector_periodic(void)
   pthread_mutex_unlock(&mutex);
 
   if(local_filters[0].updated){
-    // AbiSendMsgVISUAL_DETECTION(COLOR_OBJECT_DETECTION1_ID, local_filters[0].x_c, local_filters[0].y_c,
-    //     0, 0, local_filters[0].color_count, 0);
-
     seq1++;
     AbiSendMsgPAYLOAD_DATA(COLOR_OBJECT_DETECTION1_ID, 0xFF, 0, sizeof(cv_test_global), (uint8_t*)&local_filters[0]);
-
-    // for (int i = 0; i < local_filters[0].obstacle_num; i++) {
-    //   VERBOSE_PRINT("S: x: %d, y: %d, width: %d\n", local_filters[0].obs[i].x, local_filters[0].obs[i].y, local_filters[0].obs[i].width);
-    // }
-
     
     local_filters[0].updated = false;
   }
   if(local_filters[1].updated){
-    // AbiSendMsgVISUAL_DETECTION(COLOR_OBJECT_DETECTION2_ID, local_filters[1].x_c, local_filters[1].y_c,
-    //     0, 0, local_filters[1].color_count, 1);
-
     seq2++;
     AbiSendMsgPAYLOAD_DATA(COLOR_OBJECT_DETECTION2_ID, 0xFF, 0, sizeof(cv_test_global), (uint8_t*)&local_filters[1]);
 
@@ -772,14 +664,13 @@ void find_obstacle(uint8_t **binary_image, uint16_t rows, uint16_t cols, obs_pos
           pixel_value = binary_image[row][col];
 
           // It can't differentiate between obstacle and no green floor anymore
-          // // Detects obstacle on left edge
-          // TODO: Maybe try to add larger width to qualify these edges as obstacles
+          // Detects obstacle on left edge
           if (row <= 5 && col <= 5 && pixel_value == 0) {
              prev_pixel = 1;
              corner_obstacle = 1;
           }
 
-          // // Detects obstacle on right edge
+          // Detects obstacle on right edge
           if (row >= (rows - 5) && col <= 5 && inside_obstacle == 1) {
              pixel_value = 1;
              corner_obstacle = 1;
@@ -893,7 +784,6 @@ int prune_obstacles(obs_pos *f_coord, obs_pos *obs_coord, int num_obs_coord) {
     obstacle_end.y = obs_coord[y_idx].end.y;
 
     if ((abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) && (length > 5)){
-    //if (abs(obstacle_end.y - obstacle_start.y) > MAX_DIST) {
       f_coord[num_final_obs].start.x = obs_coord[x_idx].start.x;
       f_coord[num_final_obs].start.y = obs_coord[y_idx].start.y;
 
