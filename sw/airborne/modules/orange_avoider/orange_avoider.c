@@ -1,22 +1,3 @@
-/*
- * Copyright (C) Roland Meertens
- *
- * This file is part of paparazzi
- *
- */
-/**
- * @file "modules/orange_avoider/orange_avoider.c"
- * @author Roland Meertens
- * Example on how to use the colours detected to avoid orange pole in the cyberzoo
- * This module is an example module for the course AE4317 Autonomous Flight of Micro Air Vehicles at the TU Delft.
- * This module is used in combination with a color filter (cv_detect_color_object) and the navigation mode of the autopilot.
- * The avoidance strategy is to simply count the total number of orange pixels. When above a certain percentage threshold,
- * (given by color_count_frac) we assume that there is an obstacle and we turn.
- *
- * The color filter settings are set using the cv_detect_color_object. This module can run multiple filters simultaneously
- * so you have to define which filter to use with the ORANGE_AVOIDER_VISUAL_DETECTION_ID setting.
- */
-
 #include "modules/orange_avoider/orange_avoider.h"
 #include "firmwares/rotorcraft/navigation.h"
 #include "generated/airframe.h"
@@ -65,26 +46,21 @@ enum navigation_state_t {
 cv_test_global cv_test;
 
 uint8_t flag_critical = 0;
-// define settings
-float oa_color_count_frac = 0.22f; // Threshold for allowed obstacle pixels in the frame
-// uint32_t color_count_threshold; // To be initialized in init()
-float oa_mid_pix_count_frac = 0.04f; // Threshold for allowed obstacle pixels in the middle of the frame
-//uint32_t mid_pix_count_threshold; // To be initialized in init()
+
 
 // define and initialise global variables
 enum navigation_state_t navigation_state = SEARCH_FOR_SAFE_HEADING;
-uint32_t color_count = 0;                // orange color count from color filter for obstacle detection
-uint32_t cnt_L = 0;
-uint32_t cnt_M = 0;
-uint32_t cnt_R = 0;
-int16_t obstacle_free_confidence = 0;   // a measure of how certain we are that the way ahead is safe.
-float max_heading_increment = 15.0f;
-float min_heading_increment = 5.0f;    // Min heading indcrement [deg]
-float heading_increment = 5.0f;          // Current setting for heading angle increment [deg]
-int heading_num = 0;
-int lockChangeHeading = 0;              // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
-float maxDist = 1.0;               // max waypoint displacement [m]
-int obs_width_threshold = 90;
+uint32_t cnt_L = 0;                   // Obstacle count on the left side of the screen
+uint32_t cnt_M = 0;                   // Obstalce count in the middle of the screen
+uint32_t cnt_R = 0;                   // Obstalce count on the right side of the screen
+int16_t obstacle_free_confidence = 0; // a measure of how certain we are that the way ahead is safe.
+float max_heading_increment = 20.0f;  // Starting value for heading angle increment [deg]
+float min_heading_increment = 5.0f;   // Min heading increment [deg]
+float heading_increment = 5.0f;       // Current setting for heading angle increment [deg]
+int heading_num = 0;                  // Number of times the heading has been changed
+int lockChangeHeading = 0;            // If the drone is in safe mode and changing its heading to remove obstacles from its middle, don't do this infinitely
+float maxDist = 1.0;                  // max waypoint displacement [m]
+int obs_width_threshold = 90;         // Threshold for close obstacle width [pixels]
 uint8_t brake = 0;
 
 const int16_t max_trajectory_confidence = 4; // number of consecutive negative object detections to be sure we are obstacle free
@@ -101,24 +77,14 @@ const int16_t max_trajectory_confidence = 4; // number of consecutive negative o
 #define ORANGE_AVOIDER_VISUAL_DETECTION_ID ABI_BROADCAST
 #endif
 static abi_event color_detection_ev;
-// static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
-//                                int16_t __attribute__((unused)) pixel_x, int16_t __attribute__((unused)) pixel_y,
-//                                int16_t __attribute__((unused)) pixel_width, int16_t __attribute__((unused)) pixel_height,
-//                                int32_t quality, int16_t __attribute__((unused)) extra)
-// {
-//   color_count = quality;
-// }
-//
+
+// Receives the cv_test_global struct from the color filter module
 static void color_detection_cb(uint8_t __attribute__((unused)) sender_id,
                                uint32_t stamp, int32_t __attribute__((unused)) data_type,
                                uint32_t size, uint8_t *buf)
 {
-  // if(stamp != 101 || size != 16) return; // Check if we actually receive the message of color detection
-
   memcpy(&cv_test, (cv_test_global*) buf, size);
-
   //VERBOSE_PRINT("NUM OBS: %d\n", cv_test.obstacle_num);
-
 }
 
 // Returns the largest width of all obstacles in the selected part of the screen in pixels
@@ -136,6 +102,7 @@ int max_width(cv_test_global obs_info, int *idx_arr, int size)
     return _max;
 }
 
+// Returns the largest width of all obstacles on the screen in pixels
 int max_width_all(cv_test_global obs_info)
 {
   if(obs_info.obstacle_num == 0) return 0;
@@ -151,9 +118,7 @@ int max_width_all(cv_test_global obs_info)
   return _max;
 }
 
-/*
- * Initialisation function, setting the colour filter, random seed and heading_increment
- */
+// Initialisation function, setting the colour filter, random seed and heading_increment
 void orange_avoider_init(void)
 {
   // Initialise random values
@@ -164,16 +129,15 @@ void orange_avoider_init(void)
   AbiBindMsgPAYLOAD_DATA(ORANGE_AVOIDER_VISUAL_DETECTION_ID, &color_detection_ev, color_detection_cb);
 }
 
-/*
- * Function that checks it is safe to move forwards, and then moves a waypoint forward or changes the heading
- */
+// Periodic function, called every 250 ms (defined in the xml file)
 void orange_avoider_periodic(void)
 {
-  // only evaluate our state machine if we are flying
+  // Only evaluate our state machine if we are flying
   if(!autopilot_in_flight()){
     return;
   }
 
+  // Split obstacles over Left, Middle and Right of the screen
   cnt_L = 0;
   cnt_M = 0;
   cnt_R = 0;
@@ -202,21 +166,20 @@ void orange_avoider_periodic(void)
     }
   }
 
+  // Debug print to see the number of obstacles in each part of the screen
+  //VERBOSE_PRINT("L: %d M: %d R: %d, NS: %d\n", cnt_L, cnt_M, cnt_R, navigation_state);
 
-  VERBOSE_PRINT("L: %d M: %d R: %d, NS: %d\n", cnt_L, cnt_M, cnt_R, navigation_state);
-
-  // update our safe confidence using color threshold
+  // Update our safe confidence if no close obstacles are detected
   if (navigation_state != CRITICAL_ZONE) {
       if(max_width_all(cv_test) < obs_width_threshold){ 
         obstacle_free_confidence++;
       }
-      else { // Remove confidence if there are too many obstacles in the field
+      else { // Remove confidence if there is a close obstacle visible
         obstacle_free_confidence -= 3;
-
-    VERBOSE_PRINT("DETECTING OBSTACLE! (width = %d) Setting confidence level to %d\n", max_width_all(cv_test), obstacle_free_confidence);
+        VERBOSE_PRINT("DETECTING OBSTACLE! (width = %d) Setting confidence level to %d\n", max_width_all(cv_test), obstacle_free_confidence);
       }
   } else {
-        obstacle_free_confidence = 0;
+      obstacle_free_confidence = 0;
   }
 
   // Bound the speed depending on the amount of obstacles in sight
@@ -225,6 +188,7 @@ void orange_avoider_periodic(void)
 
   uint32_t _green = cv_test.green_count;
 
+  // The state machine
   switch (navigation_state) {
     case SAFE:
       if (cnt_M > 0 && max_width(cv_test, index_M, cnt_M) <= obs_width_threshold && (cnt_L == 0 || cnt_R == 0)) { // If there is an obstacle in the middle, but still far, move aside and continue flying
@@ -251,6 +215,7 @@ void orange_avoider_periodic(void)
         moveWaypointForward(WP_GOAL, moveDistance);
       }
 
+      // If there are little green pixels, go to critical zone
       if ((_green < 5000) || (brake == 1)) {
         // Stop immediately
         waypoint_move_here_2d(WP_GOAL);
@@ -261,19 +226,21 @@ void orange_avoider_periodic(void)
         
       break;
     case OBSTACLE_FOUND:
-      // stop
+      // Stop
       waypoint_move_here_2d(WP_GOAL);
       waypoint_move_here_2d(WP_TRAJECTORY);
 
-      // randomly select new search direction
+      // Randomly select new search direction
       chooseIncrementAvoidance();
       navigation_state = SEARCH_FOR_SAFE_HEADING;
 
       break;
     case SEARCH_FOR_SAFE_HEADING:
 
+      // Keep rotating until we are safe
       VERBOSE_PRINT("obstacle conf: %d", obstacle_free_confidence);
       increase_nav_heading(0);
+
       // make sure we have a couple of good readings before declaring the way safe
       if (obstacle_free_confidence >= 2){
         lockChangeHeading = 0;
@@ -334,7 +301,7 @@ void orange_avoider_periodic(void)
       }
 
       increase_nav_heading(2);
-      moveWaypointForward(WP_TRAJECTORY, 1.0f); // TODO: Should we change this 1.5??
+      moveWaypointForward(WP_TRAJECTORY, 1.0f);
 
       if (InsideObstacleZone(WaypointX(WP_TRAJECTORY),WaypointY(WP_TRAJECTORY))){
         // add offset to head back into arena
@@ -473,27 +440,6 @@ uint8_t chooseRandomIncrementAvoidance(void)
  */
 uint8_t chooseIncrementAvoidance(void)
 {
-  // heading_num = 0;
-  // if (cnt_M == 0) {
-  //   // If nothing in middle keep moving straaight
-  //    return false;
-  // } else if (cnt_M > 0 && cnt_L == 0 && cnt_R == 0) {
-  //   // Obstacle in the middle but none on the left and right
-  //   // change headinig in the previous direction
-  //   heading_increment = (((int)heading_increment / abs((int)heading_increment)) * max_heading_increment);
-  // } else {
-  //   if (cnt_R == 0) {
-  //     heading_increment = -max_heading_increment;
-  //   } else if (cnt_L == 0) {
-  //     heading_increment = max_heading_increment;
-  //   } else {
-
-  //     // All directions have obstacles
-  //     heading_increment = (((int)heading_increment / abs((int)heading_increment)) * max_heading_increment);
-  //     //heading_increment = (((int)heading_increment / abs((int)heading_increment)) * 45);  // TODO: Chnage this logic
-  //   }
-  // }
-
    heading_num = 0;
   if(cnt_L == cnt_R){ // If equal obstacle counts, move to a random direction
     chooseRandomIncrementAvoidance();
