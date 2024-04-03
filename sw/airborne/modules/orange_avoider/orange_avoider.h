@@ -17,7 +17,7 @@
 #include <stdbool.h>
 
 // settings
-extern float oa_color_count_frac;
+// extern float oa_color_count_frac;
 
 typedef struct obs_data_t {
     uint16_t x;
